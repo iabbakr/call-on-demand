@@ -1,21 +1,33 @@
-// lib/api.ts
-import axios from "axios";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL; 
-// e.g. "https://your-cloud-function-url" or "https://your-nextjs-site.com/api"
+const functions = getFunctions();
+
+/** Generic API response type */
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  vtpass?: T;
+  [key: string]: any;
+}
+
+/** Helper wrapper */
+async function callFn<T = any>(name: string, data: any): Promise<ApiResponse<T>> {
+  const fn = httpsCallable(functions, name);
+  const res = await fn(data);
+  return res.data as ApiResponse<T>;
+}
+
+/** Service functions */
+export async function getDataPlans(serviceID: string) {
+  return await callFn("getDataPlans", { serviceID });
+}
 
 export async function buyAirtime(params: {
   serviceID: string;
   amount: number;
   phone: string;
 }) {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/vtpass/airtime`, params);
-    return response.data;
-  } catch (error: any) {
-    console.error("Airtime API Error:", error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || "Airtime purchase failed");
-  }
+  return await callFn("buyAirtime", params);
 }
 
 export async function buyData(params: {
@@ -25,12 +37,7 @@ export async function buyData(params: {
   amount: number;
   phone: string;
 }) {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/vtpass/data`, params);
-    return response.data;
-  } catch (error: any) {
-    throw new Error(error.response?.data?.message || "Data purchase failed");
-  }
+  return await callFn("buyData", params);
 }
 
 export async function buyElectricity(params: {
@@ -40,19 +47,27 @@ export async function buyElectricity(params: {
   amount: number;
   phone: string;
 }) {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/vtpass/electricity`, params);
-    return response.data;
-  } catch (error: any) {
-    throw new Error(error.response?.data?.message || "Electricity purchase failed");
-  }
+  return await callFn("buyElectricity", params);
 }
 
-export async function getDataPlans(serviceID: string) {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/vtpass/data-plans?serviceID=${serviceID}`);
-    return response.data;
-  } catch (error: any) {
-    throw new Error(error.response?.data?.message || "Failed to fetch data plans");
-  }
+export async function buyEducation(params: {
+  serviceID: string;
+  quantity: number;
+  amount: number;
+  phone: string;
+}) {
+  return await callFn("buyEducation", params);
+}
+
+export async function verifyMeter(serviceID: string, billersCode: string) {
+  return await callFn("verifyMeter", { serviceID, billersCode });
+}
+
+/** Paystack */
+export async function createPaystackTransaction(amount: number, email: string) {
+  return await callFn("createPaystackTransaction", { amount, email });
+}
+
+export async function verifyPaystackAndCredit(reference: string, amount: number) {
+  return await callFn("verifyPaystackAndCredit", { reference, amount });
 }

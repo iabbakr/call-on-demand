@@ -1,60 +1,128 @@
-import { Entypo, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import {
+  Entypo,
+  FontAwesome5,
+  MaterialCommunityIcons,
+  MaterialIcons,
+} from "@expo/vector-icons";
 import { Tabs, useRouter } from "expo-router";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { Alert, Image, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
+import { useAuth } from "../../context/AuthContext";
+import { db } from "../../lib/firebase";
 
 const PRIMARY_COLOR = "#6200EE";
-const SECONDARY_COLOR = "#03DAC6";
 const INACTIVE_COLOR = "#757575";
 const BACKGROUND_COLOR = "#FFFFFF";
-const HEADER_BG = "#F5F5F5";
+
+interface UserData {
+  fullName: string;
+  username: string;
+}
 
 export default function RootLayout() {
-
   const router = useRouter();
-  // Replace with actual user data from your auth context
-  const userFirstName = "Abubakar";
-  const userProfileImage = "https://res-console.cloudinary.com/dswwtuano/thumbnails/v1/image/upload/v1760121319/dGkzNHBybzJobGQ3Z2txNWFrZDg=/preview"; // Replace with actual image URL
-  
+  const { user } = useAuth();
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+  const [hasUnreadNotification, setHasUnreadNotification] = useState(false);
+
+  // 🔹 Fetch user info
+  useEffect(() => {
+    if (!user) return;
+    const fetchUserData = async () => {
+      try {
+        const docRef = doc(db, "users", user.uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          setUserData(snap.data() as UserData);
+        } else {
+          console.log("No user data found");
+        }
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        Alert.alert("Error", "Failed to fetch user info.");
+      }
+    };
+    fetchUserData();
+  }, [user]);
+
+  // 🔹 Listen for new chat messages
+  useEffect(() => {
+    if (!user) return;
+
+    const chatRef = doc(db, "chats", user.uid);
+    const unsub = onSnapshot(chatRef, (snapshot) => {
+      if (!snapshot.exists()) return;
+      const data = snapshot.data();
+      const unreadCount = data?.metadata?.unreadCount || 0;
+      setHasNewMessage(unreadCount > 0);
+    });
+
+    return () => unsub();
+  }, [user]);
+
+  // 🔹 Listen for unread notifications
+  useEffect(() => {
+    if (!user) return;
+
+    const notifRef = collection(db, "notifications", user.uid, "list");
+    const q = query(notifRef, where("read", "==", false));
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      setHasUnreadNotification(!snapshot.empty);
+    });
+
+    return () => unsub();
+  }, [user]);
+
+  const userProfileImage =
+    "https://res-console.cloudinary.com/dswwtuano/thumbnails/v1/image/upload/v1760121319/dGkzNHBybzJobGQ3Z2txNWFrZDg=/preview";
+
   return (
-    <Tabs 
-      screenOptions={{ 
-        headerTitle: () => {
-            return (
-                <View style={styles.headerLeft}>
-                    <Pressable 
-                        style={({ pressed }) => [   
-                            styles.profileButton,
-                            pressed && styles.profileButtonPressed
-                        ]}
-                        onPress={() => alert("Go to Profile")}
-                    >
-                        <View>
-                            <Image 
-                                source={{ uri: userProfileImage }} 
-                                style={styles.profileImage} 
-                            />
-                        </View>
-                    </Pressable>
-                    <View style={styles.greetingContainer}>
-                        <Text style={{fontWeight:"bold", fontSize: 15, color:INACTIVE_COLOR}}> Hello, {userFirstName}</Text>
-                    </View>
-                </View>         
-            )
-        },
+    <Tabs
+      screenOptions={{
+        headerTitle: () => (
+          <View style={styles.headerLeft}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.profileButton,
+                pressed && styles.profileButtonPressed,
+              ]}
+              onPress={() => router.push("/profile")}
+            >
+              <Image
+                source={{ uri: userProfileImage }}
+                style={styles.profileImage}
+              />
+            </Pressable>
+            <View style={styles.greetingContainer}>
+              <Text
+                style={{
+                  fontWeight: "bold",
+                  fontSize: 15,
+                  color: INACTIVE_COLOR,
+                }}
+              >
+                Hello, {userData?.fullName?.split(" ")[0] || "User"}
+              </Text>
+            </View>
+          </View>
+        ),
         headerTitleAlign: "left",
         headerStyle: {
           backgroundColor: BACKGROUND_COLOR,
-          elevation: 0,
-          shadowOpacity: 0,
           borderBottomWidth: 1,
           borderBottomColor: "#E0E0E0",
           height: 120,
-        },
-        headerTitleStyle: {
-          fontSize: 20,
-          fontWeight: "700",
-          color: "#1A1A1A",
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
@@ -66,55 +134,59 @@ export default function RootLayout() {
           paddingBottom: 10,
           paddingTop: 8,
           elevation: 8,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
           marginTop: 4,
         },
-        headerRight: () => {
-          return (
-            <View style={styles.headerRight}>
-              <Pressable 
-                onPress={() => router.push("/support")}
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  pressed && styles.iconButtonPressed
-                ]}
-              >
+        headerRight: () => (
+          <View style={styles.headerRight}>
+            {/* Support */}
+            <Pressable
+              onPress={() => router.push("/support")}
+              style={({ pressed }) => [
+                styles.iconButton,
+                pressed && styles.iconButtonPressed,
+              ]}
+            >
+              <View style={styles.notificationWrapper}>
                 <MaterialIcons name="support-agent" size={22} color="#1A1A1A" />
-              </Pressable>
-              <Pressable 
-                onPress={() => router.push("/notifications")}
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  pressed && styles.iconButtonPressed
-                ]}
-              >
-                <View style={styles.notificationWrapper}>
-                  <MaterialIcons name="notifications" size={22} color="#1A1A1A" />
-                  <View style={styles.badge} />
-                </View>
-              </Pressable>
-            </View>
-          );
-        }
-      }} 
+                {hasNewMessage && <View style={styles.badge} />}
+              </View>
+            </Pressable>
+
+            {/* Notifications */}
+            <Pressable
+              onPress={() => router.push("/notifications")}
+              style={({ pressed }) => [
+                styles.iconButton,
+                pressed && styles.iconButtonPressed,
+              ]}
+            >
+              <View style={styles.notificationWrapper}>
+                <MaterialIcons
+                  name="notifications"
+                  size={22}
+                  color="#1A1A1A"
+                />
+                {hasUnreadNotification && <View style={styles.badge} />}
+              </View>
+            </Pressable>
+          </View>
+        ),
+      }}
     >
       <Tabs.Screen
         name="index"
         options={{
           headerShown: true,
           tabBarLabel: "Home",
-          tabBarIcon: ({ color, focused }) => (
-            <Entypo 
-              name="home" 
-              size={24} 
-              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR} 
+          tabBarIcon: ({ focused }) => (
+            <Entypo
+              name="home"
+              size={24}
+              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
             />
           ),
         }}
@@ -124,29 +196,43 @@ export default function RootLayout() {
         options={{
           headerShown: false,
           tabBarLabel: "Rewards",
-          tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons 
-              name="diamond-stone" 
-              size={24} 
-              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR} 
+          tabBarIcon: ({ focused }) => (
+            <MaterialCommunityIcons
+              name="diamond-stone"
+              size={24}
+              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
             />
           ),
-        }}        
-      /> 
+        }}
+      />
+      <Tabs.Screen
+        name="finance"
+        options={{
+          headerShown: false,
+          tabBarLabel: "Finance",
+          tabBarIcon: ({ focused }) => (
+            <FontAwesome5
+              name="donate"
+              size={24}
+              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
+            />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{
           headerShown: false,
           tabBarLabel: "Profile",
-          tabBarIcon: ({ color, focused }) => (
-            <Entypo 
-              name="user" 
-              size={24} 
-              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR} 
+          tabBarIcon: ({ focused }) => (
+            <Entypo
+              name="user"
+              size={24}
+              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
             />
           ),
-        }}        
-      />       
+        }}
+      />
     </Tabs>
   );
 }
@@ -166,21 +252,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: INACTIVE_COLOR,
   },
-  profileButtonPressed: {
-    opacity: 0.7,
-  },
-  profileImage: {
-    width: "100%",
-    height: "100%",
-  },
-  greetingContainer: {
-    justifyContent: "center",
-  },
-  greeting: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A1A1A",
-  },
+  profileButtonPressed: { opacity: 0.7 },
+  profileImage: { width: "100%", height: "100%" },
+  greetingContainer: { justifyContent: "center" },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -196,16 +270,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#F5F5F5",
   },
-  iconButtonPressed: {
-    backgroundColor: "#E0E0E0",
-  },
-  notificationWrapper: {
-    position: "relative",
-  },
+  iconButtonPressed: { backgroundColor: "#E0E0E0" },
+  notificationWrapper: { position: "relative" },
   badge: {
     position: "absolute",
-    top: 0,
-    right: 0,
+    top: -2,
+    right: -2,
     width: 8,
     height: 8,
     borderRadius: 4,

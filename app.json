@@ -11,6 +11,9 @@
     "ios": {
       "supportsTablet": true
     },
+    "extra": {
+     "PAYSTACK_PUBLIC_KEY": "pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

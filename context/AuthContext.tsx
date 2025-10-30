@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import CryptoJS from "crypto-js";
 import {
   User,
   createUserWithEmailAndPassword,
@@ -6,31 +6,27 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "../lib/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import CryptoJS from "crypto-js";
 
-// 🔹 Extra user data fields expected during signup
 export interface ExtraUserData {
   fullName: string;
   username: string;
   phoneNumber: string;
   location: string;
+  gender: string;
   pin: string;
   bankName?: string | null;
   accountNumber?: string | null;
+  accountName?: string | null;
 }
 
-// 🔹 Auth context definition
 interface AuthContextProps {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (
-    email: string,
-    password: string,
-    extraData: ExtraUserData
-  ) => Promise<void>;
+  signUp: (email: string, password: string, extraData: ExtraUserData) => Promise<void>;
   logOut: () => Promise<void>;
 }
 
@@ -42,55 +38,38 @@ const AuthContext = createContext<AuthContextProps>({
   logOut: async () => {},
 });
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Track authentication state
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsub = onAuthStateChanged(auth, (current) => {
+      setUser(current);
       setLoading(false);
     });
-    return unsubscribe;
+    return unsub;
   }, []);
 
-  // 🔹 Sign In
   const signIn = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
   };
 
-  // 🔹 Sign Up (Firebase Auth + Firestore)
-  const signUp = async (
-    email: string,
-    password: string,
-    extraData: ExtraUserData
-  ) => {
-    // Create user in Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
+  const signUp = async (email: string, password: string, extraData: ExtraUserData) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const { uid } = userCredential.user;
 
-    // Generate a referral code (e.g. "ABUBAKAR1234")
-    const referralCode = `${extraData.fullName
-      .split(" ")[0]
-      .toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
-
-    // Hash the user's 4-digit PIN
+    const referralCode = `${extraData.fullName.split(" ")[0].toUpperCase()}${Math.floor(
+      1000 + Math.random() * 9000
+    )}`;
     const hashedPin = CryptoJS.SHA256(extraData.pin).toString();
 
-    // Create Firestore user document
     await setDoc(doc(db, "users", uid), {
       uid,
       email,
       fullName: extraData.fullName,
       username: extraData.username,
       phoneNumber: extraData.phoneNumber,
+      gender: extraData.gender,
       location: extraData.location,
       pin: hashedPin,
       bankName: extraData.bankName || null,
@@ -105,10 +84,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       paystackRecipientCode: null,
       trustScore: 0,
       createdAt: serverTimestamp(),
+      role: "buyer",
     });
   };
 
-  // 🔹 Log Out
   const logOut = async () => {
     await signOut(auth);
   };
@@ -120,5 +99,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
-// 🔹 Hook for using the Auth context
 export const useAuth = () => useContext(AuthContext);

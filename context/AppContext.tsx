@@ -1,23 +1,33 @@
+import CryptoJS from "crypto-js";
+import * as LocalAuthentication from "expo-local-authentication";
 import {
   addDoc,
   collection,
   doc,
+  DocumentData,
+  getCountFromServer,
+  getDoc,
   increment,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
-  getCountFromServer,
 } from "firebase/firestore";
-import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { Alert } from "react-native";
 import { db } from "../lib/firebase";
 import { useAuth } from "./AuthContext";
 
-// ======================
-// 🔹 Types
-// ======================
-
+// ----------------------
+// TYPES
+// ----------------------
 export type UserProfile = {
   uid: string;
   fullName: string;
@@ -35,8 +45,9 @@ export type UserProfile = {
   referralCount?: number;
   balance: number;
   bonusBalance: number;
-  trustScore?: number; // ✅ Added trust score
-  createdAt?: any;
+  trustScore?: number;
+  createdAt?: Date;
+  role?: "admin" | "seller" | "buyer";
 };
 
 export type Transaction = {
@@ -46,6 +57,7 @@ export type Transaction = {
   type: "credit" | "debit";
   category: string;
   date: Date;
+  status: "pending" | "success" | "failed";
 };
 
 interface AppContextProps {
@@ -58,12 +70,17 @@ interface AppContextProps {
   deductBalance: (amount: number, description: string, category: string) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, "id" | "date">) => Promise<void>;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
+  refreshBalance: () => Promise<void>;
+  // 🔐 Secure action props
+  secureAction: (action: () => void) => Promise<void>;
+  verifyPin: (enteredPin: string) => Promise<void>;
+  showPinDialog: boolean;
+  setShowPinDialog: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-// ======================
-// 🔹 Context
-// ======================
-
+// ----------------------
+// CONTEXT
+// ----------------------
 const AppContext = createContext<AppContextProps>({
   userProfile: null,
   loading: true,
@@ -74,8 +91,16 @@ const AppContext = createContext<AppContextProps>({
   deductBalance: async () => {},
   addTransaction: async () => {},
   updateUserProfile: async () => {},
+  refreshBalance: async () => {},
+  secureAction: async () => {},
+  verifyPin: async () => {},
+  showPinDialog: false,
+  setShowPinDialog: () => {},
 });
 
+// ----------------------
+// PROVIDER
+// ----------------------
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -84,9 +109,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [bonusBalance, setBonusBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // ======================
-  // 🔹 Real-time Listeners
-  // ======================
+  // 🔐 Secure Action State
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  // ----------------------
+  // FIRESTORE LISTENERS
+  // ----------------------
   useEffect(() => {
     if (!user) {
       setUserProfile(null);
@@ -98,30 +127,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const userDocRef = doc(db, "users", user.uid);
-
     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as UserProfile;
-        // Never expose hashed pin to UI
-        const { pin, ...safeProfile } = data as any;
-        setUserProfile(safeProfile);
-        setBalance(safeProfile.balance || 0);
-        setBonusBalance(safeProfile.bonusBalance || 0);
+        const data = docSnap.data() as DocumentData;
+        const { pin, ...safeProfile } = data;
+        setUserProfile({ ...safeProfile } as UserProfile);
+        setBalance(safeProfile.balance ?? 0);
+        setBonusBalance(safeProfile.bonusBalance ?? 0);
       } else {
         setUserProfile(null);
       }
       setLoading(false);
     });
 
-    // Listen to user transactions
     const txRef = collection(db, "users", user.uid, "transactions");
     const txQuery = query(txRef, orderBy("date", "desc"));
     const unsubscribeTx = onSnapshot(txQuery, (snapshot) => {
-      const txs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate?.() || new Date(),
-      })) as Transaction[];
+      const txs = snapshot.docs.map((d) => {
+        const tx = d.data() as DocumentData;
+        return {
+          id: d.id,
+          description: tx.description,
+          amount: tx.amount,
+          type: tx.type,
+          category: tx.category,
+          status: tx.status ?? "success",
+          date: tx.date?.toDate?.() || new Date(),
+        } as Transaction;
+      });
       setTransactions(txs);
     });
 
@@ -131,16 +164,66 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [user]);
 
-  // ======================
-  // 🔹 Firestore Actions
-  // ======================
+  // ----------------------
+  // 🔐 SECURE ACTION LOGIC
+  // ----------------------
+  const secureAction = async (action: () => void) => {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const supported = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const savedBiometrics = await LocalAuthentication.isEnrolledAsync();
 
+      if (hasHardware && supported.length > 0 && savedBiometrics) {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Confirm with Biometrics",
+          fallbackLabel: "Use PIN",
+        });
+
+        if (result.success) {
+          action();
+          return;
+        }
+      }
+
+      // Biometrics unavailable → fallback to PIN
+      setPendingAction(() => action);
+      setShowPinDialog(true);
+    } catch (err) {
+      console.log("Biometric Error:", err);
+      setPendingAction(() => action);
+      setShowPinDialog(true);
+    }
+  };
+
+  const verifyPin = async (enteredPin: string) => {
+    if (!user) return Alert.alert("Error", "User not authenticated.");
+
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (!userDoc.exists()) return Alert.alert("Error", "User data not found.");
+
+      const storedHashedPin = userDoc.data().pin;
+      const enteredHashed = CryptoJS.SHA256(enteredPin).toString();
+
+      if (enteredHashed === storedHashedPin) {
+        setShowPinDialog(false);
+        if (pendingAction) pendingAction();
+      } else {
+        Alert.alert("Invalid PIN", "The PIN you entered is incorrect.");
+      }
+    } catch (error) {
+      console.error("PIN verify error:", error);
+      Alert.alert("Error", "Could not verify PIN.");
+    }
+  };
+
+  // ----------------------
+  // BALANCE + TX HELPERS
+  // ----------------------
   const addTransaction = async (transaction: Omit<Transaction, "id" | "date">) => {
     if (!user) throw new Error("User not authenticated.");
     const txRef = collection(db, "users", user.uid, "transactions");
     await addDoc(txRef, { ...transaction, date: serverTimestamp() });
-
-    // Update trust score whenever a transaction is added
     await updateTrustScore(user.uid);
   };
 
@@ -153,36 +236,45 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addBalance = async (amount: number, description: string, category: string) => {
     if (!user) throw new Error("User not authenticated.");
     const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, { balance: increment(amount) });
-    await addTransaction({ description, amount, category, type: "credit" });
+    await updateDoc(userRef, { balance: increment(Number(amount)) });
+    await addTransaction({ description, amount, category, type: "credit", status: "success" });
   };
 
   const deductBalance = async (amount: number, description: string, category: string) => {
     if (!user) throw new Error("User not authenticated.");
     if (amount > balance + bonusBalance) throw new Error("Insufficient balance.");
     const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, { balance: increment(-amount) });
-    await addTransaction({ description, amount, category, type: "debit" });
+    await updateDoc(userRef, { balance: increment(-Number(amount)) });
+    await addTransaction({ description, amount, category, type: "debit", status: "success" });
   };
 
-  // ======================
-  // 🔹 Trust Score Logic
-  // ======================
   const updateTrustScore = async (uid: string) => {
     const txRef = collection(db, "users", uid, "transactions");
     const snapshot = await getCountFromServer(txRef);
     const txCount = snapshot.data().count;
-
-    // Example: trustScore = min(100, 10 + txCount * 5)
     const trustScore = Math.min(100, 10 + txCount * 5);
-
     const userRef = doc(db, "users", uid);
     await updateDoc(userRef, { trustScore });
   };
 
-  // ======================
-  // 🔹 Context Value
-  // ======================
+  const refreshBalance = async () => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        setBalance(data.balance ?? 0);
+        setBonusBalance(data.bonusBalance ?? 0);
+      }
+    } catch (error) {
+      console.error("Failed to refresh balance:", error);
+    }
+  };
+
+  // ----------------------
+  // VALUE
+  // ----------------------
   const value: AppContextProps = {
     userProfile,
     loading,
@@ -193,9 +285,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     addBalance,
     deductBalance,
     updateUserProfile,
+    refreshBalance,
+    secureAction,
+    verifyPin,
+    showPinDialog,
+    setShowPinDialog,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
 
+// ----------------------
+// HOOK
+// ----------------------
 export const useApp = () => useContext(AppContext);

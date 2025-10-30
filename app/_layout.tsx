@@ -1,21 +1,26 @@
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { useSecureAction } from "@/hooks/useSecureAction";
 import { Stack, useRouter } from "expo-router";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { PaperProvider } from "react-native-paper";
+import PinDialog from "./components/security/PinDialog"; // ✅ correct import path
 
-// 🔒 RouteGuard checks authentication before rendering children
 function RouteGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const { secureAction, showPinDialog, setShowPinDialog, verifyPin } = useSecureAction();
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        router.replace("/auth"); // Not logged in
+        router.replace("/auth");
       } else {
-        router.replace("/(tabs)"); // Logged in
+        // 🔐 Ask for biometric or PIN on app start
+        secureAction(() => {
+          console.log("Unlocked app ✅");
+        });
       }
     }
   }, [user, loading]);
@@ -35,15 +40,26 @@ function RouteGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+
+      {/* 🔐 Global PIN dialog */}
+      <PinDialog
+        visible={showPinDialog}
+        onClose={() => setShowPinDialog(false)}
+        onSubmit={verifyPin} // ✅ renamed to match prop name in PinDialogProps
+      />
+    </>
+  );
 }
 
-// 🧩 Root layout that wraps everything
 export default function RootLayout() {
   return (
     <AuthProvider>
       <AppProvider>
         <PaperProvider>
+          {/* ✅ RouteGuard now wraps all screens */}
           <RouteGuard>
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -51,7 +67,7 @@ export default function RootLayout() {
             </Stack>
           </RouteGuard>
         </PaperProvider>
-        </AppProvider>
+      </AppProvider>
     </AuthProvider>
   );
 }

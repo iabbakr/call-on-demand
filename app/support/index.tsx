@@ -1,18 +1,32 @@
-import { View, StyleSheet, Linking, Pressable } from "react-native";
-import { Text } from "react-native-paper";
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { MaterialIcons, Feather } from "@expo/vector-icons";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "react-native-paper";
+import { useApp } from "../../context/AppContext"; // ✅ import your context
 
 const PRIMARY_COLOR = "#6200EE";
 
 export default function Support() {
+  const { userProfile } = useApp();
+  const isAdmin = userProfile?.role === "admin";
+
+  const handleChatPress = () => {
+    if (isAdmin) {
+      // ✅ Navigate to admin inbox
+      router.push("/support/admin");
+    } else {
+      // ✅ Navigate to user chat
+      router.push("/support/chat");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Support</Text>
 
       <Pressable
         style={styles.option}
-        onPress={() => Linking.openURL("tel:+2348001234567")}
+        onPress={() => Linking.openURL("tel:+2348069728683")}
       >
         <MaterialIcons name="call" size={24} color={PRIMARY_COLOR} />
         <Text style={styles.optionText}>Call Us</Text>
@@ -20,18 +34,17 @@ export default function Support() {
 
       <Pressable
         style={styles.option}
-        onPress={() => Linking.openURL("mailto:support@example.com")}
+        onPress={() => Linking.openURL("mailto:dangulbi01@gmail.com")}
       >
         <MaterialIcons name="email" size={24} color={PRIMARY_COLOR} />
         <Text style={styles.optionText}>Email Us</Text>
       </Pressable>
 
-      <Pressable
-        style={styles.option}
-        onPress={() => router.push("/support/chat")}
-      >
+      <Pressable style={styles.option} onPress={handleChatPress}>
         <Feather name="message-square" size={24} color={PRIMARY_COLOR} />
-        <Text style={styles.optionText}>In-App Chat</Text>
+        <Text style={styles.optionText}>
+          {isAdmin ? "Admin Inbox" : "In-App Chat"}
+        </Text>
       </Pressable>
     </View>
   );

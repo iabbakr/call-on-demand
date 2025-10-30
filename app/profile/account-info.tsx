@@ -1,8 +1,15 @@
-import { router } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
-import { Button, Text } from "react-native-paper";
+import {
+  ActivityIndicator,
+  Alert,
+  Clipboard,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { Card, Divider, Text } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
 import { db } from "../../lib/firebase";
 
@@ -12,12 +19,19 @@ const BACKGROUND_COLOR = "#FFFFFF";
 const HEADER_BG = "#F5F5F5";
 
 interface UserData {
-  fullName: string;
-  username: string;
-  phoneNumber: string;
-  location: string;
+  fullName?: string;
+  username?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  phoneNumber?: string;
+  nin?: string;
+  bvn?: string;
+  address?: string;
+  location?: string;
   bankName?: string;
   accountNumber?: string;
+  email?: string;
+  referralCode?: string;
 }
 
 export default function AccountInfo() {
@@ -51,66 +65,69 @@ export default function AccountInfo() {
     );
   }
 
+  const copyToClipboard = (text: string) => {
+    Clipboard.setString(text);
+    Alert.alert("Copied", "Referral code copied to clipboard!");
+  };
+
+  const renderRow = (label: string, value?: string, isReferral?: boolean) => (
+    <View style={styles.profileRow}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Text style={styles.value}>{value || "N/A"}</Text>
+        {isReferral && value && (
+          <TouchableOpacity
+            onPress={() => copyToClipboard(value)}
+            style={{ marginLeft: 10 }}
+          >
+            <Text style={{ color: PRIMARY_COLOR, fontWeight: "bold" }}>Copy</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={styles.headerTitle}>Account Information</Text>
 
-      <View style={styles.profileCard}>
-        <View style={styles.profileRow}>
-          <Text style={styles.label}>Full Name</Text>
-          <Text style={styles.value}>{userData?.fullName || "N/A"}</Text>
-        </View>
+      {/* --- PERSONAL DETAILS --- */}
+      <Card style={styles.card}>
+        <Card.Title title="Personal Information" titleStyle={styles.sectionTitle} />
+        <Card.Content>
+          {renderRow("Full Name", userData?.fullName)}
+          <Divider style={styles.divider} />
+          {renderRow("Username", userData?.username ? `@${userData.username}` : undefined)}
+          <Divider style={styles.divider} />
+          {renderRow("Email", userData?.email)}
+          <Divider style={styles.divider} />
+          {renderRow("Mobile Number", userData?.phoneNumber)}
+          <Divider style={styles.divider} />
+          {renderRow("Gender", userData?.gender)}
+          <Divider style={styles.divider} />
+          {renderRow("Date of Birth", userData?.dateOfBirth)}
+          <Divider style={styles.divider} />
+          {renderRow("NIN", userData?.nin)}
+          <Divider style={styles.divider} />
+          {renderRow("BVN", userData?.bvn)}
+          <Divider style={styles.divider} />
+          {renderRow("Address", userData?.address)}
+          <Divider style={styles.divider} />
+          {renderRow("Location", userData?.location)}
+          <Divider style={styles.divider} />
+          {renderRow("Referral Code", userData?.referralCode, true)}
+        </Card.Content>
+      </Card>
 
-        <View style={styles.divider} />
-
-        <View style={styles.profileRow}>
-          <Text style={styles.label}>Username</Text>
-          <Text style={styles.value}>@{userData?.username || "N/A"}</Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.profileRow}>
-          <Text style={styles.label}>Phone Number</Text>
-          <Text style={styles.value}>{userData?.phoneNumber || "N/A"}</Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.profileRow}>
-          <Text style={styles.label}>Location</Text>
-          <Text style={styles.value}>{userData?.location || "N/A"}</Text>
-        </View>
-
-        {userData?.bankName && (
-          <>
-            <View style={styles.divider} />
-            <View style={styles.profileRow}>
-              <Text style={styles.label}>Bank Name</Text>
-              <Text style={styles.value}>{userData.bankName}</Text>
-            </View>
-          </>
-        )}
-
-        {userData?.accountNumber && (
-          <>
-            <View style={styles.divider} />
-            <View style={styles.profileRow}>
-              <Text style={styles.label}>Account Number</Text>
-              <Text style={styles.value}>{userData.accountNumber}</Text>
-            </View>
-          </>
-        )}
-      </View>
-
-      <Button
-        mode="contained"
-        style={styles.backBtn}
-        onPress={() => router.back()}
-        buttonColor={PRIMARY_COLOR}
-      >
-        Back to Profile
-      </Button>
+      {/* --- BANK DETAILS --- */}
+      <Card style={[styles.card, { marginTop: 25 }]}>
+        <Card.Title title="Bank Details" titleStyle={styles.sectionTitle} />
+        <Card.Content>
+          {renderRow("Bank Name", userData?.bankName)}
+          <Divider style={styles.divider} />
+          {renderRow("Account Number", userData?.accountNumber)}
+        </Card.Content>
+      </Card>
     </ScrollView>
   );
 }
@@ -129,21 +146,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
   },
-  profileCard: {
+  card: {
     backgroundColor: BACKGROUND_COLOR,
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+    paddingVertical: 10,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 3,
   },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: PRIMARY_COLOR,
+  },
   profileRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   label: {
     fontSize: 15,
@@ -154,15 +175,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1A1A1A",
     fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
   },
   divider: {
     height: 1,
     backgroundColor: HEADER_BG,
-  },
-  backBtn: {
-    marginTop: 30,
-    alignSelf: "center",
-    width: "60%",
-    borderRadius: 8,
+    marginVertical: 4,
   },
 });

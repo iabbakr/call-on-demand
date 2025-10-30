@@ -1,13 +1,13 @@
-// /app/services/electricity.tsx
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
 import { Text } from "react-native-paper";
 import { TextInput } from "react-native-paper";
 import { router } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "../../lib/firebase";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { useApp } from "../../context/AppContext";
+import { buyElectricity, verifyMeter } from "../../lib/api";
+import axios from "axios";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
@@ -23,6 +23,7 @@ const discos = [
 
 export default function ElectricityPage() {
   const { user } = useAuth();
+  const { balance: globalBalance, deductBalance, addTransaction } = useApp();
   const [balance, setBalance] = useState<number>(0);
   const [disco, setDisco] = useState("");
   const [meter, setMeter] = useState("");
@@ -34,43 +35,27 @@ export default function ElectricityPage() {
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return setInitialLoading(false);
-    (async () => {
-      try {
-        const ref = doc(db, "users", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) setBalance((snap.data() as any).balance || 0);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setInitialLoading(false);
-      }
-    })();
-  }, [user]);
+    setBalance(globalBalance || 0);
+    setInitialLoading(false);
+  }, [globalBalance]);
 
-  const verifyMeter = async () => {
+  const handleVerify = async () => {
     if (!disco || !meter) {
       Alert.alert("Invalid", "Choose a disco and enter meter number");
       return;
     }
     setVerifying(true);
     try {
-      const res = await fetch("/api/vtpass/electricity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify", serviceID: disco, billersCode: meter }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || data?.response_description || "Verification failed");
-      if (data?.content?.Customer_Name) {
-        setCustomerName(data.content.Customer_Name);
-        Alert.alert("Verified", `Meter belongs to ${data.content.Customer_Name}`);
+      const resp = await verifyMeter(disco, meter); // cloud callable
+      if (resp?.success && resp.content?.Customer_Name) {
+        setCustomerName(resp.content.Customer_Name);
+        Alert.alert("Verified", `Meter belongs to ${resp.content.Customer_Name}`);
       } else {
-        throw new Error(data?.response_description || "Could not verify meter");
+        throw new Error(resp?.message || "Could not verify meter");
       }
     } catch (err: any) {
       console.error("verify:", err);
-      Alert.alert("Error", err.message || "Failed verification");
+      Alert.alert("Error", err?.message || "Failed verification");
     } finally {
       setVerifying(false);
     }
@@ -85,28 +70,20 @@ export default function ElectricityPage() {
       if (isNaN(amt) || amt < 100) throw new Error("Enter an amount >= 100");
       if (amt > balance) throw new Error("Insufficient balance");
 
-      const res = await fetch("/api/vtpass/electricity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          serviceID: disco,
-          billersCode: meter,
-          variation_code: meterType,
-          amount: amt,
-          phone: (user?.phoneNumber || user?.email) || "08011111111",
-        }),
+      const res = await buyElectricity({
+        serviceID: disco,
+        billersCode: meter,
+        variation_code: meterType,
+        amount: amt,
+        phone: (user?.phoneNumber || user?.email) || "08011111111",
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || data?.response_description || "Payment failed");
-      if (data?.code && data.code !== "000") throw new Error(data.response_description || "Transaction failed");
+      if (!res || !res.success) throw new Error("Electricity purchase failed");
+      const vt = res.vtpass || res;
+      if (vt?.code && vt.code !== "000") throw new Error(vt.response_description || "Transaction failed");
 
-      // deduct
-      if (user) {
-        const ref = doc(db, "users", user.uid);
-        await updateDoc(ref, { balance: (balance - amt) });
-        setBalance(prev => prev - amt);
-      }
+      await deductBalance(amt, `Electricity ${disco} - ${meter}`, "Electricity");
+      await addTransaction({ description: `Electricity payment ${meter}`, amount: amt, type: "debit", category: "Electricity", status: "success" });
 
       Alert.alert("Success", `Electricity purchase successful. Check token or meter.`);
       setDisco("");
@@ -116,7 +93,7 @@ export default function ElectricityPage() {
       router.back();
     } catch (err: any) {
       console.error("electricity:", err);
-      Alert.alert("Error", err.message || "Could not pay");
+      Alert.alert("Error", err?.message || "Could not pay");
     } finally {
       setLoading(false);
     }
@@ -170,7 +147,7 @@ export default function ElectricityPage() {
           <Pressable onPress={() => setMeterType("postpaid")} style={[styles.smallBtn, meterType === "postpaid" && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}>
             <Text>Postpaid</Text>
           </Pressable>
-          <Pressable onPress={verifyMeter} style={[styles.verifyBtn, verifying && { opacity: 0.7 }]}>
+          <Pressable onPress={handleVerify} style={[styles.verifyBtn, verifying && { opacity: 0.7 }]}>
             {verifying ? <ActivityIndicator /> : <Text style={{ color: BACKGROUND_COLOR }}>Verify</Text>}
           </Pressable>
         </View>
@@ -189,11 +166,11 @@ export default function ElectricityPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: HEADER_BG },
+  container: { flex: 1, padding: 16, backgroundColor: "#F5F5F5" },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   balanceCard: { backgroundColor: PRIMARY_COLOR, borderRadius: 8, padding: 16, marginBottom: 16 },
-  networkItem: { padding: 10, margin: 4, backgroundColor: HEADER_BG, borderRadius: 8 },
-  smallBtn: { padding: 10, marginRight: 8, backgroundColor: HEADER_BG, borderRadius: 8 },
+  networkItem: { padding: 10, margin: 4, backgroundColor: "#F5F5F5", borderRadius: 8 },
+  smallBtn: { padding: 10, marginRight: 8, backgroundColor: "#F5F5F5", borderRadius: 8 },
   verifyBtn: { marginLeft: "auto", backgroundColor: PRIMARY_COLOR, padding: 10, borderRadius: 8 },
   button: { marginTop: 16, backgroundColor: PRIMARY_COLOR, padding: 12, borderRadius: 8, alignItems: "center" },
   buttonText: { color: BACKGROUND_COLOR, fontWeight: "700" },

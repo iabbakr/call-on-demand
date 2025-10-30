@@ -164,7 +164,7 @@ export default function Profile() {
             {
               icon: <MaterialCommunityIcons name="security" size={22} color={PRIMARY_COLOR} />,
               title: "Security",
-              route: "/profile/security",
+              route: "/profile/security/security",
             },
             {
               icon: <MaterialIcons name="notifications" size={22} color={PRIMARY_COLOR} />,

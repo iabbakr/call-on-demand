@@ -1,13 +1,12 @@
-// /app/services/education.tsx
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
 import { Text } from "react-native-paper";
 import { TextInput } from "react-native-paper";
 import { router } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { MaterialCommunityIcons, FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import { useApp } from "../../context/AppContext";
+import { buyEducation } from "../../lib/api";
+import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
@@ -22,27 +21,18 @@ const services = [
 
 export default function EducationPage() {
   const { user } = useAuth();
+  const { balance: globalBalance, deductBalance, addTransaction } = useApp();
   const [balance, setBalance] = useState<number>(0);
   const [service, setService] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [pricePerUnit, setPricePerUnit] = useState(500); // adjust as you like or fetch from server
+  const [pricePerUnit, setPricePerUnit] = useState(500);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return setInitialLoading(false);
-    (async () => {
-      try {
-        const ref = doc(db, "users", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) setBalance((snap.data() as any).balance || 0);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setInitialLoading(false);
-      }
-    })();
-  }, [user]);
+    setBalance(globalBalance || 0);
+    setInitialLoading(false);
+  }, [globalBalance]);
 
   const handleBuy = async () => {
     setLoading(true);
@@ -53,22 +43,19 @@ export default function EducationPage() {
       const total = qty * pricePerUnit;
       if (total > balance) throw new Error("Insufficient balance");
 
-      const res = await fetch("/api/vtpass/education", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceID: service, quantity: qty, amount: total, phone: (user?.phoneNumber || user?.email) }),
+      const res = await buyEducation({
+        serviceID: service,
+        quantity: qty,
+        amount: total,
+        phone: (user?.phoneNumber || user?.email) || "08011111111",
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || data?.response_description || "Purchase failed");
-      if (data?.code && data.code !== "000") throw new Error(data.response_description || "Transaction failed");
+      if (!res || !res.success) throw new Error("Transaction failed");
+      const vt = res.vtpass || res;
+      if (vt?.code && vt.code !== "000") throw new Error(vt.response_description || "Transaction failed");
 
-      // deduct
-      if (user) {
-        const ref = doc(db, "users", user.uid);
-        await updateDoc(ref, { balance: (balance - total) });
-        setBalance(prev => prev - total);
-      }
+      await deductBalance(total, `Purchased ${qty} ${service} pin(s)`, "Education");
+      await addTransaction({ description: `Education purchase ${service}`, amount: total, type: "debit", category: "Education", status: "success" });
 
       Alert.alert("Success", `Purchased ${quantity} ${service.toUpperCase()} pin(s).`);
       setService("");
@@ -76,7 +63,7 @@ export default function EducationPage() {
       router.back();
     } catch (err: any) {
       console.error("education:", err);
-      Alert.alert("Error", err.message || "Failed to purchase");
+      Alert.alert("Error", err?.message || "Failed to purchase");
     } finally {
       setLoading(false);
     }
@@ -138,10 +125,10 @@ export default function EducationPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: HEADER_BG },
+  container: { flex: 1, padding: 16, backgroundColor: "#F5F5F5" },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   balanceCard: { backgroundColor: PRIMARY_COLOR, borderRadius: 8, padding: 16, marginBottom: 16 },
-  networkItem: { padding: 10, marginRight: 8, backgroundColor: HEADER_BG, borderRadius: 8 },
+  networkItem: { padding: 10, marginRight: 8, backgroundColor: "#F5F5F5", borderRadius: 8 },
   button: { marginTop: 16, backgroundColor: PRIMARY_COLOR, padding: 12, borderRadius: 8, alignItems: "center" },
   buttonText: { color: BACKGROUND_COLOR, fontWeight: "700" },
 });
