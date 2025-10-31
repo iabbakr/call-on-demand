@@ -4,8 +4,9 @@ import { useSecureAction } from "@/hooks/useSecureAction";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PaperProvider } from "react-native-paper";
-import PinDialog from "./components/security/PinDialog"; // ✅ correct import path
+import PinDialog from "./components/security/PinDialog";
 
 function RouteGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -48,7 +49,7 @@ function RouteGuard({ children }: { children: React.ReactNode }) {
       <PinDialog
         visible={showPinDialog}
         onClose={() => setShowPinDialog(false)}
-        onSubmit={verifyPin} // ✅ renamed to match prop name in PinDialogProps
+        onSubmit={verifyPin}
       />
     </>
   );
@@ -56,18 +57,19 @@ function RouteGuard({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AppProvider>
-        <PaperProvider>
-          {/* ✅ RouteGuard now wraps all screens */}
-          <RouteGuard>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="auth" options={{ headerShown: false }} />
-            </Stack>
-          </RouteGuard>
-        </PaperProvider>
-      </AppProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <AppProvider>
+          <PaperProvider>
+            <RouteGuard>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="auth" options={{ headerShown: false }} />
+              </Stack>
+            </RouteGuard>
+          </PaperProvider>
+        </AppProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
