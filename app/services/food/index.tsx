@@ -253,7 +253,7 @@ export default function FoodServices() {
               </Text>
               <View style={styles.actionRow}>
                 <Button compact mode="contained" onPress={() => router.push(`/services/food/${item.id}`)}>
-                  View
+                  Checkout
                 </Button>
                 <Text style={{ alignSelf: "center" }}>⭐ {item.rating ?? "—"}</Text>
               </View>

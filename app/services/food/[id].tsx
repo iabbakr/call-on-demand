@@ -10,6 +10,8 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -266,99 +268,112 @@ export default function FoodDetails() {
   const total = calculateTotal();
 
   return (
-    <ScrollView style={styles.container}>
-      <Card style={styles.card}>
-        {food.thumbnail ? (
-          <Image source={{ uri: food.thumbnail }} style={styles.image} />
-        ) : (
-          <View style={[styles.image, styles.placeholder]}>
-            <Text style={{ color: "#fff", fontSize: 28 }}>🍲</Text>
-          </View>
-        )}
-        <Card.Content>
-          <Text style={styles.name}>{food.name}</Text>
-          <Text style={styles.desc}>{food.description}</Text>
-          <Text style={styles.price}>₦{food.price?.toLocaleString()}</Text>
-        </Card.Content>
-      </Card>
-
-      {/* Portion */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Select Portion (₦1000 each)</Text>
-        <View style={styles.row}>
-          <Button
-            mode="outlined"
-            onPress={() => setPortionCount(Math.max(1, portionCount - 1))}
-          >
-            -
-          </Button>
-          <Text style={{ marginHorizontal: 10, fontSize: 18 }}>
-            {portionCount}
-          </Text>
-          <Button
-            mode="outlined"
-            onPress={() => setPortionCount(portionCount + 1)}
-          >
-            +
-          </Button>
-        </View>
-      </View>
-
-      {/* Categories */}
-      <ItemCategory
-        title="Select Proteins"
-        items={availableProteins}
-        selected={proteins}
-        onToggle={(item) => toggleItem(item, proteins, setProteins)}
-        onChangeQty={(name, delta) =>
-          changeItemQty(name, delta, proteins, setProteins)
-        }
-      />
-      <ItemCategory
-        title="Soups"
-        items={availableSoups}
-        selected={soups}
-        onToggle={(item) => toggleItem(item, soups, setSoups)}
-      />
-      <ItemCategory
-        title="Add Extras"
-        items={availableExtras}
-        selected={extras}
-        onToggle={(item) => toggleItem(item, extras, setExtras)}
-        onChangeQty={(name, delta) =>
-          changeItemQty(name, delta, extras, setExtras)
-        }
-      />
-
-      {/* Address */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Delivery Address</Text>
-        <TextInput
-          mode="outlined"
-          placeholder="Enter full address"
-          value={address}
-          onChangeText={setAddress}
-          multiline
-        />
-      </View>
-
-      {/* Checkout */}
-      <Button
-        mode="contained"
-        loading={processing}
-        disabled={processing}
-        onPress={handleCheckoutSecure}
-        style={styles.checkoutBtn}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+    >
+      <ScrollView
+        style={styles.container}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 50 }}
       >
-        Checkout & Pay ₦{total.toLocaleString()}
-      </Button>
+        <Card style={styles.card}>
+          {food.thumbnail ? (
+            <Image source={{ uri: food.thumbnail }} style={styles.image} />
+          ) : (
+            <View style={[styles.image, styles.placeholder]}>
+              <Text style={{ color: "#fff", fontSize: 28 }}>🍲</Text>
+            </View>
+          )}
+          <Card.Content>
+            <Text style={styles.name}>{food.name}</Text>
+            <Text style={styles.desc}>{food.description}</Text>
+            <Text style={styles.price}>₦{food.price?.toLocaleString()}</Text>
+          </Card.Content>
+        </Card>
 
-      <PinDialog
-        visible={showPinDialog}
-        onClose={() => setShowPinDialog(false)}
-        onSubmit={verifyPin}
-      />
-    </ScrollView>
+        {/* Portion */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Select Portion (₦1000 each)</Text>
+          <View style={styles.row}>
+            <Button
+              mode="outlined"
+              onPress={() => setPortionCount(Math.max(1, portionCount - 1))}
+            >
+              -
+            </Button>
+            <Text style={{ marginHorizontal: 10, fontSize: 18 }}>
+              {portionCount}
+            </Text>
+            <Button
+              mode="outlined"
+              onPress={() => setPortionCount(portionCount + 1)}
+            >
+              +
+            </Button>
+          </View>
+        </View>
+
+        {/* Categories */}
+        <ItemCategory
+          title="Select Proteins"
+          items={availableProteins}
+          selected={proteins}
+          onToggle={(item) => toggleItem(item, proteins, setProteins)}
+          onChangeQty={(name, delta) =>
+            changeItemQty(name, delta, proteins, setProteins)
+          }
+        />
+        <ItemCategory
+          title="Soups"
+          items={availableSoups}
+          selected={soups}
+          onToggle={(item) => toggleItem(item, soups, setSoups)}
+          onChangeQty={(name, delta) =>
+            changeItemQty(name, delta, soups, setSoups)
+          }
+        />
+        <ItemCategory
+          title="Add Extras"
+          items={availableExtras}
+          selected={extras}
+          onToggle={(item) => toggleItem(item, extras, setExtras)}
+          onChangeQty={(name, delta) =>
+            changeItemQty(name, delta, extras, setExtras)
+          }
+        />
+
+        {/* Address */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Delivery Address</Text>
+          <TextInput
+            mode="outlined"
+            placeholder="Enter full address"
+            value={address}
+            onChangeText={setAddress}
+            multiline
+          />
+        </View>
+
+        {/* Checkout */}
+        <Button
+          mode="contained"
+          loading={processing}
+          disabled={processing}
+          onPress={handleCheckoutSecure}
+          style={styles.checkoutBtn}
+        >
+          Pay ₦{total.toLocaleString()}
+        </Button>
+
+        <PinDialog
+          visible={showPinDialog}
+          onClose={() => setShowPinDialog(false)}
+          onSubmit={verifyPin}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
