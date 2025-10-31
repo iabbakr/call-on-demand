@@ -20,44 +20,116 @@ import {
   Button,
   Card,
   Text,
-  TextInput
+  TextInput,
 } from "react-native-paper";
 import { useApp } from "../../../context/AppContext";
 import { useAuth } from "../../../context/AuthContext";
+import { useSecureAction } from "../../../hooks/useSecureAction";
 import { db } from "../../../lib/firebase";
+import PinDialog from "../../components/security/PinDialog";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
 
+type SelectableItem = {
+  name: string;
+  price: number;
+  quantity?: number;
+};
+
+type ItemCategoryProps = {
+  title: string;
+  items: SelectableItem[];
+  selected: SelectableItem[];
+  onToggle: (item: SelectableItem) => void;
+  onChangeQty?: (name: string, delta: number) => void;
+};
+
+const ItemCategory = ({
+  title,
+  items,
+  selected,
+  onToggle,
+  onChangeQty,
+}: ItemCategoryProps) => {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.label}>{title}</Text>
+      <View style={styles.flexWrap}>
+        {items.map((item) => {
+          const isSelected = selected.find((x) => x.name === item.name);
+          return (
+            <TouchableOpacity
+              key={item.name}
+              style={[styles.itemCard, isSelected && styles.itemSelected]}
+              onPress={() => onToggle(item)}
+            >
+              <Text style={styles.itemText}>{item.name}</Text>
+              <Text style={styles.itemPrice}>₦{item.price}</Text>
+
+              {/* Quantity controls (show if selected) */}
+              {isSelected && onChangeQty && (
+                <View style={styles.qtyControls}>
+                  <TouchableOpacity
+                    onPress={() => onChangeQty(item.name, -1)}
+                    style={styles.qtyBtn}
+                  >
+                    <Text>-</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.qtyText}>{isSelected.quantity}</Text>
+                  <TouchableOpacity
+                    onPress={() => onChangeQty(item.name, 1)}
+                    style={styles.qtyBtn}
+                  >
+                    <Text>+</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
 export default function FoodDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { userProfile, balance, deductBalance, addTransaction, refreshBalance } = useApp();
+  const {
+    userProfile,
+    balance,
+    deductBalance,
+    addTransaction,
+    refreshBalance,
+  } = useApp();
+  const { secureAction, showPinDialog, setShowPinDialog, verifyPin } =
+    useSecureAction();
 
   const [food, setFood] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [portionCount, setPortionCount] = useState(1);
-  const [proteins, setProteins] = useState<any[]>([]);
-  const [soups, setSoups] = useState<any[]>([]);
-  const [extras, setExtras] = useState<any[]>([]);
+  const [proteins, setProteins] = useState<SelectableItem[]>([]);
+  const [soups, setSoups] = useState<SelectableItem[]>([]);
+  const [extras, setExtras] = useState<SelectableItem[]>([]);
   const [address, setAddress] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  const availableProteins = [
+  const availableProteins: SelectableItem[] = [
     { name: "Chicken", price: 1000 },
     { name: "Beef", price: 800 },
     { name: "Fish", price: 900 },
     { name: "Goat Meat", price: 1200 },
   ];
 
-  const availableSoups = [
+  const availableSoups: SelectableItem[] = [
     { name: "Egusi", price: 700 },
     { name: "Vegetable", price: 600 },
     { name: "Okro", price: 500 },
     { name: "Kuka", price: 400 },
   ];
 
-  const availableExtras = [
+  const availableExtras: SelectableItem[] = [
     { name: "Plantain", price: 500 },
     { name: "Egg", price: 300 },
     { name: "Water", price: 200 },
@@ -90,45 +162,40 @@ export default function FoodDetails() {
       (sum, p) => sum + p.price * (p.quantity || 1),
       0
     );
-    const extrasTotal = extras.reduce((sum, e) => sum + e.price, 0);
-    const soupsTotal = soups.reduce((sum, s) => sum + s.price, 0);
+    const extrasTotal = extras.reduce(
+      (sum, e) => sum + e.price * (e.quantity || 1),
+      0
+    );
+    const soupsTotal = soups.reduce(
+      (sum, s) => sum + s.price * (s.quantity || 1),
+      0
+    );
     return base + portionPrice + proteinTotal + extrasTotal + soupsTotal;
   };
 
-  const toggleProtein = (protein: any) => {
-    const exists = proteins.find((p) => p.name === protein.name);
-    if (exists) {
-      setProteins(proteins.filter((p) => p.name !== protein.name));
-    } else {
-      setProteins([...proteins, { ...protein, quantity: 1 }]);
-    }
+  const toggleItem = (
+    item: SelectableItem,
+    list: SelectableItem[],
+    setList: React.Dispatch<React.SetStateAction<SelectableItem[]>>
+  ) => {
+    const exists = list.find((x) => x.name === item.name);
+    if (exists) setList(list.filter((x) => x.name !== item.name));
+    else setList([...list, { ...item, quantity: 1 }]);
   };
 
-  const changeProteinQty = (name: string, delta: number) => {
-    setProteins((prev) =>
-      prev.map((p) =>
+  const changeItemQty = (
+    name: string,
+    delta: number,
+    list: SelectableItem[],
+    setList: React.Dispatch<React.SetStateAction<SelectableItem[]>>
+  ) => {
+    setList(
+      list.map((p) =>
         p.name === name
-          ? { ...p, quantity: Math.max(1, p.quantity + delta) }
+          ? { ...p, quantity: Math.max(1, (p.quantity || 1) + delta) }
           : p
       )
     );
-  };
-
-  const toggleSoup = (soup: any) => {
-    if (soups.find((s) => s.name === soup.name)) {
-      setSoups(soups.filter((s) => s.name !== soup.name));
-    } else {
-      setSoups([...soups, soup]);
-    }
-  };
-
-  const toggleExtra = (extra: any) => {
-    const exists = extras.find((e) => e.name === extra.name);
-    if (exists) {
-      setExtras(extras.filter((e) => e.name !== extra.name));
-    } else {
-      setExtras([...extras, extra]);
-    }
   };
 
   const handleCheckout = async () => {
@@ -143,6 +210,7 @@ export default function FoodDetails() {
 
     try {
       setProcessing(true);
+
       await deductBalance(totalPrice, `Ordered ${food.name}`, "food");
       await addTransaction({
         description: `Ordered ${food.name}`,
@@ -172,7 +240,6 @@ export default function FoodDetails() {
         "Order Successful",
         `Invoice #${orderRef.id}\n\nTotal: ₦${totalPrice.toLocaleString()}`
       );
-
       router.push({
         pathname: "/services/food/invoice",
         params: { orderId: orderRef.id },
@@ -184,6 +251,8 @@ export default function FoodDetails() {
       setProcessing(false);
     }
   };
+
+  const handleCheckoutSecure = () => secureAction(() => handleCheckout());
 
   if (loading)
     return (
@@ -217,82 +286,49 @@ export default function FoodDetails() {
       <View style={styles.section}>
         <Text style={styles.label}>Select Portion (₦1000 each)</Text>
         <View style={styles.row}>
-          <Button mode="outlined" onPress={() => setPortionCount(Math.max(1, portionCount - 1))}>-</Button>
-          <Text style={{ marginHorizontal: 10, fontSize: 18 }}>{portionCount}</Text>
-          <Button mode="outlined" onPress={() => setPortionCount(portionCount + 1)}>+</Button>
+          <Button
+            mode="outlined"
+            onPress={() => setPortionCount(Math.max(1, portionCount - 1))}
+          >
+            -
+          </Button>
+          <Text style={{ marginHorizontal: 10, fontSize: 18 }}>
+            {portionCount}
+          </Text>
+          <Button
+            mode="outlined"
+            onPress={() => setPortionCount(portionCount + 1)}
+          >
+            +
+          </Button>
         </View>
       </View>
 
-      {/* Proteins */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Select Proteins</Text>
-        <View style={styles.flexWrap}>
-          {availableProteins.map((p) => {
-            const selected = proteins.find((x) => x.name === p.name);
-            return (
-              <TouchableOpacity
-                key={p.name}
-                style={[styles.itemCard, selected && styles.itemSelected]}
-                onPress={() => toggleProtein(p)}
-              >
-                <Text style={styles.itemText}>{p.name}</Text>
-                <Text style={styles.itemPrice}>₦{p.price}</Text>
-                {selected && (
-                  <View style={styles.qtyControls}>
-                    <TouchableOpacity onPress={() => changeProteinQty(p.name, -1)} style={styles.qtyBtn}>
-                      <Text>-</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.qtyText}>{selected.quantity}</Text>
-                    <TouchableOpacity onPress={() => changeProteinQty(p.name, 1)} style={styles.qtyBtn}>
-                      <Text>+</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Soups */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Soups</Text>
-        <View style={styles.flexWrap}>
-          {availableSoups.map((s) => (
-            <TouchableOpacity
-              key={s.name}
-              style={[
-                styles.itemCard,
-                soups.find((x) => x.name === s.name) && styles.itemSelected,
-              ]}
-              onPress={() => toggleSoup(s)}
-            >
-              <Text style={styles.itemText}>{s.name}</Text>
-              <Text style={styles.itemPrice}>₦{s.price}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Extras */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Add Extras</Text>
-        <View style={styles.flexWrap}>
-          {availableExtras.map((extra) => (
-            <TouchableOpacity
-              key={extra.name}
-              style={[
-                styles.itemCard,
-                extras.find((x) => x.name === extra.name) && styles.itemSelected,
-              ]}
-              onPress={() => toggleExtra(extra)}
-            >
-              <Text style={styles.itemText}>{extra.name}</Text>
-              <Text style={styles.itemPrice}>₦{extra.price}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      {/* Categories */}
+      <ItemCategory
+        title="Select Proteins"
+        items={availableProteins}
+        selected={proteins}
+        onToggle={(item) => toggleItem(item, proteins, setProteins)}
+        onChangeQty={(name, delta) =>
+          changeItemQty(name, delta, proteins, setProteins)
+        }
+      />
+      <ItemCategory
+        title="Soups"
+        items={availableSoups}
+        selected={soups}
+        onToggle={(item) => toggleItem(item, soups, setSoups)}
+      />
+      <ItemCategory
+        title="Add Extras"
+        items={availableExtras}
+        selected={extras}
+        onToggle={(item) => toggleItem(item, extras, setExtras)}
+        onChangeQty={(name, delta) =>
+          changeItemQty(name, delta, extras, setExtras)
+        }
+      />
 
       {/* Address */}
       <View style={styles.section}>
@@ -311,11 +347,17 @@ export default function FoodDetails() {
         mode="contained"
         loading={processing}
         disabled={processing}
-        onPress={handleCheckout}
+        onPress={handleCheckoutSecure}
         style={styles.checkoutBtn}
       >
         Checkout & Pay ₦{total.toLocaleString()}
       </Button>
+
+      <PinDialog
+        visible={showPinDialog}
+        onClose={() => setShowPinDialog(false)}
+        onSubmit={verifyPin}
+      />
     </ScrollView>
   );
 }
@@ -345,10 +387,7 @@ const styles = StyleSheet.create({
     width: "47%",
     backgroundColor: "#fff",
   },
-  itemSelected: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#EDE7F6",
-  },
+  itemSelected: { borderColor: PRIMARY_COLOR, backgroundColor: "#EDE7F6" },
   itemText: { fontWeight: "600", fontSize: 14 },
   itemPrice: { fontSize: 13, color: "#666", marginTop: 4 },
   qtyControls: {

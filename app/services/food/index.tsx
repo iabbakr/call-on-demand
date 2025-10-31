@@ -16,6 +16,8 @@ import {
   Alert,
   FlatList,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -35,6 +37,7 @@ import { getCitiesByState, getStates, StateName } from "../../../constants/data/
 import { useApp } from "../../../context/AppContext";
 import { useAuth } from "../../../context/AuthContext";
 import { db } from "../../../lib/firebase";
+import { notifyUsers } from "../../../lib/notifications"; // <-- updated import
 
 type Service = {
   id?: string;
@@ -134,7 +137,7 @@ export default function FoodServices() {
     return result.secure_url;
   };
 
-  // Add food
+  // Add food with push notification
   const addFood = async () => {
     if (!newFood.name || !newFood.state || !newFood.city || !newFood.price) {
       return Alert.alert("Missing fields", "Please fill all required fields.");
@@ -146,12 +149,26 @@ export default function FoodServices() {
         imageUrl = await uploadToCloudinary(image);
       }
 
-      await addDoc(collection(db, "services"), {
+      const foodDocRef = await addDoc(collection(db, "services"), {
         ...newFood,
         category: "food",
         thumbnail: imageUrl,
         createdAt: Date.now(),
       });
+
+      // Notify users in the same state/city
+      try {
+        await notifyUsers(
+          { state: newFood.state, city: newFood.city },
+          {
+            title: "New Food Available 🍲",
+            body: `${newFood.name} is now available in ${newFood.city}, ${newFood.state}!`,
+            data: { foodId: foodDocRef.id, category: "food" },
+          }
+        );
+      } catch (notifErr) {
+        console.error("Failed to send notifications:", notifErr);
+      }
 
       Alert.alert("✅ Food added successfully");
       setNewFood({ name: "", state: "", city: "", price: 0, description: "" });
@@ -235,8 +252,8 @@ export default function FoodServices() {
                 {item.city}, {item.state} • ₦{item.price?.toLocaleString()}
               </Text>
               <View style={styles.actionRow}>
-                <Button compact mode="contained" onPress={() => order(item)}>
-                  Order
+                <Button compact mode="contained" onPress={() => router.push(`/services/food/${item.id}`)}>
+                  View
                 </Button>
                 <Text style={{ alignSelf: "center" }}>⭐ {item.rating ?? "—"}</Text>
               </View>
@@ -318,7 +335,24 @@ export default function FoodServices() {
 
       {isAdmin && (
         <View style={styles.adminSection}>
-          <Text style={styles.adminTitle}>Admin: Add Food Item</Text>
+          <Text style={styles.adminTitle}>Admin: Food Management</Text>
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+            <Button
+              mode="outlined"
+              onPress={() => router.push("/services/food/admin/admin-orders")}
+            >
+              View Orders
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => router.push("/services/food/admin/admin-analytics")}
+            >
+              View Analytics
+            </Button>
+          </View>
+
+          <Text style={styles.adminTitle}>Add Food Item</Text>
 
           <Button icon="image" mode="outlined" onPress={pickImage} style={{ marginVertical: 6 }}>
             {image ? "Change Image" : "Select Food Image"}
@@ -346,7 +380,10 @@ export default function FoodServices() {
   );
 
   return (
-    <>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <Stack.Screen options={{ headerShown: true, headerTitle: "Food" }} />
       {loading ? (
         <ActivityIndicator animating style={{ marginTop: 40 }} />
@@ -365,7 +402,7 @@ export default function FoodServices() {
           contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 80 }}
         />
       )}
-    </>
+    </KeyboardAvoidingView>
   );
 }
 
