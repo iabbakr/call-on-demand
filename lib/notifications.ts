@@ -1,11 +1,4 @@
-import {
-  addDoc,
-  collection,
-  getDocs,
-  query,
-  QueryConstraint,
-  where
-} from "firebase/firestore";
+import { addDoc, collection, getDocs, query, QueryConstraint, where } from "firebase/firestore";
 import { db } from "./firebase";
 
 interface NotificationData {
@@ -21,9 +14,6 @@ interface UserFilter {
   role?: string;
 }
 
-/**
- * Send a single Expo push notification
- */
 const sendExpoNotification = async (
   expoPushToken: string,
   { title, body, data }: NotificationData
@@ -50,16 +40,12 @@ const sendExpoNotification = async (
   }
 };
 
-/**
- * Send notifications to users with optional filters, logging, and retry
- */
 export const notifyUsers = async (
   filters: UserFilter = {},
   notification: NotificationData,
   maxRetries = 3
 ) => {
   try {
-    // Build query constraints
     const constraints: QueryConstraint[] = [];
     if (filters.state) constraints.push(where("state", "==", filters.state));
     if (filters.city) constraints.push(where("city", "==", filters.city));
@@ -74,45 +60,45 @@ export const notifyUsers = async (
       .map((doc) => doc.data())
       .filter((user: any) => user.expoPushToken)
       .map(async (user: any) => {
-        let attempt = 0;
-        while (attempt < maxRetries) {
-          try {
-            await sendExpoNotification(user.expoPushToken, notification);
-            break; // success, exit loop
-          } catch (err) {
-            attempt++;
-            if (attempt >= maxRetries) {
-              console.error(`Failed to notify ${user.id} after ${maxRetries} attempts.`);
+        // Schedule notification if needed
+        if (notification.scheduleAt && notification.scheduleAt > new Date()) {
+          await addDoc(collection(db, "scheduledNotifications"), {
+            userId: user.id,
+            expoPushToken: user.expoPushToken,
+            notification,
+            scheduledAt: notification.scheduleAt,
+            createdAt: new Date(),
+            status: "pending",
+          });
+        } else {
+          // Send immediately
+          let attempt = 0;
+          while (attempt < maxRetries) {
+            try {
+              await sendExpoNotification(user.expoPushToken, notification);
+              break;
+            } catch (err) {
+              attempt++;
+              if (attempt >= maxRetries) {
+                console.error(`Failed to notify ${user.id} after ${maxRetries} attempts.`);
+              }
             }
           }
         }
 
-        // Log notification in Firestore
+        // Log notification
         await addDoc(collection(db, "notifications"), {
           userId: user.id,
           title: notification.title,
           body: notification.body,
           data: notification.data || {},
-          sentAt: new Date(),
+          sentAt: notification.scheduleAt ? null : new Date(),
         });
       });
 
     await Promise.all(notificationsPromises);
-    console.log(`Notifications sent to ${notificationsPromises.length} users.`);
+    console.log(`Notifications processed for ${notificationsPromises.length} users.`);
   } catch (err) {
     console.error("Failed to notify users:", err);
   }
 };
-
-/**
- * Example usage:
- */
-
-// Global notification
-// notifyUsers({}, { title: "Hello", body: "Global update for all users" });
-
-// Notification to Lagos users only
-// notifyUsers({ state: "Lagos" }, { title: "Promo", body: "Special Lagos discount!" });
-
-// Notification to admins
-// notifyUsers({ role: "admin" }, { title: "Admin Alert", body: "New food item added!" });
