@@ -26,9 +26,9 @@ import {
   Text,
   TextInput,
 } from "react-native-paper";
-import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
-import { db } from "../../lib/firebase";
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
+import { db } from "../../../lib/firebase";
 
 type LogisticsService = {
   id: string;

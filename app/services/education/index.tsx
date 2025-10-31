@@ -1,16 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
-import { Text } from "react-native-paper";
-import { TextInput } from "react-native-paper";
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
-import { useApp } from "../../context/AppContext";
-import { buyEducation } from "../../lib/api";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "react-native-paper";
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
+import { buyEducation } from "../../../lib/api"; // ✅ Use existing API
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
-const HEADER_BG = "#F5F5F5";
 const INACTIVE_COLOR = "#757575";
 
 const services = [
@@ -47,17 +45,21 @@ export default function EducationPage() {
         serviceID: service,
         quantity: qty,
         amount: total,
-        phone: (user?.phoneNumber || user?.email) || "08011111111",
+        phone: user?.phoneNumber || "08011111111",
       });
 
-      if (!res || !res.success) throw new Error("Transaction failed");
-      const vt = res.vtpass || res;
-      if (vt?.code && vt.code !== "000") throw new Error(vt.response_description || "Transaction failed");
+      if (!res || !res.success) throw new Error(res.response_description || "Transaction failed");
 
       await deductBalance(total, `Purchased ${qty} ${service} pin(s)`, "Education");
-      await addTransaction({ description: `Education purchase ${service}`, amount: total, type: "debit", category: "Education", status: "success" });
+      await addTransaction({
+        description: `Education purchase ${service}`,
+        amount: total,
+        type: "debit",
+        category: "Education",
+        status: "success",
+      });
 
-      Alert.alert("Success", `Purchased ${quantity} ${service.toUpperCase()} pin(s).`);
+      Alert.alert("Success", `Purchased ${qty} ${service.toUpperCase()} pin(s).`);
       setService("");
       setQuantity("1");
       router.back();
@@ -90,19 +92,21 @@ export default function EducationPage() {
       </View>
 
       <View style={styles.balanceCard}>
-        <View>
-          <Text style={{ color: BACKGROUND_COLOR, fontSize: 12 }}>Your wallet balance</Text>
-          <Text style={{ color: BACKGROUND_COLOR, fontSize: 20, fontWeight: "700" }}>
-            <FontAwesome5 name="coins" size={16} color={BACKGROUND_COLOR} /> {balance.toLocaleString()}
-          </Text>
-        </View>
+        <Text style={{ color: BACKGROUND_COLOR, fontSize: 12 }}>Your wallet balance</Text>
+        <Text style={{ color: BACKGROUND_COLOR, fontSize: 20, fontWeight: "700" }}>
+          <FontAwesome5 name="coins" size={16} color={BACKGROUND_COLOR} /> {balance.toLocaleString()}
+        </Text>
       </View>
 
-      <View style={{ backgroundColor: BACKGROUND_COLOR, padding: 12, borderRadius: 8 }}>
+      <View style={styles.form}>
         <Text>Choose Service</Text>
         <View style={{ flexDirection: "row", marginTop: 8 }}>
-          {services.map(s => (
-            <Pressable key={s.id} onPress={() => setService(s.id)} style={[styles.networkItem, service === s.id && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}>
+          {services.map((s) => (
+            <Pressable
+              key={s.id}
+              onPress={() => setService(s.id)}
+              style={[styles.networkItem, service === s.id && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}
+            >
               <Text style={{ color: INACTIVE_COLOR }}>{s.name}</Text>
             </Pressable>
           ))}
@@ -128,6 +132,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#F5F5F5" },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   balanceCard: { backgroundColor: PRIMARY_COLOR, borderRadius: 8, padding: 16, marginBottom: 16 },
+  form: { backgroundColor: BACKGROUND_COLOR, padding: 12, borderRadius: 8 },
   networkItem: { padding: 10, marginRight: 8, backgroundColor: "#F5F5F5", borderRadius: 8 },
   button: { marginTop: 16, backgroundColor: PRIMARY_COLOR, padding: 12, borderRadius: 8, alignItems: "center" },
   buttonText: { color: BACKGROUND_COLOR, fontWeight: "700" },

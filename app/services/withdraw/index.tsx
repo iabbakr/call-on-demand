@@ -3,8 +3,8 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 import { Text, TextInput } from "react-native-paper";
-import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";

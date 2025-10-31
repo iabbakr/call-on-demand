@@ -3,8 +3,8 @@ import * as Clipboard from "expo-clipboard";
 import React from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
-import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";

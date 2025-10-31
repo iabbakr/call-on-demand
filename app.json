@@ -12,7 +12,7 @@
       "supportsTablet": true
     },
     "extra": {
-     "PAYSTACK_PUBLIC_KEY": "pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "PAYSTACK_PUBLIC_KEY": "pk_live_fa61fa7d6b1aa11544212ca21c5648a56e68288b",
     },
     "android": {
       "adaptiveIcon": {

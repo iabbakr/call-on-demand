@@ -20,10 +20,10 @@ import {
   View,
 } from "react-native";
 import { Text, TextInput } from "react-native-paper";
-import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
-import { db } from "../../lib/firebase";
-import SecureActionWrapper from "../components/security/SecureActionWrapper";
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
+import { db } from "../../../lib/firebase";
+import SecureActionWrapper from "../../components/security/SecureActionWrapper";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";

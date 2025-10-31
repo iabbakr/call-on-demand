@@ -3,21 +3,20 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 import { Text, TextInput } from "react-native-paper";
-import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
-import { useSecureAction } from "../../hooks/useSecureAction"; // ✅ added
-import { buyAirtime } from "../../lib/api";
-import PinDialog from "../components/security/PinDialog"; // ✅ added
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
+import { useSecureAction } from "../../../hooks/useSecureAction";
+import { buyAirtime } from "../../../lib/vtpass"; // <-- updated import
+import PinDialog from "../../components/security/PinDialog";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
-const HEADER_BG = "#F5F5F5";
 const INACTIVE_COLOR = "#757575";
 
 export default function AirtimePage() {
   const { user } = useAuth();
   const { balance, deductBalance, addTransaction } = useApp();
-  const { secureAction, showPinDialog, setShowPinDialog, verifyPin } = useSecureAction(); // ✅ added
+  const { secureAction, showPinDialog, setShowPinDialog, verifyPin } = useSecureAction();
   const [localBalance, setLocalBalance] = useState<number>(0);
   const [phone, setPhone] = useState("");
   const [network, setNetwork] = useState("");
@@ -30,7 +29,6 @@ export default function AirtimePage() {
     setInitialLoading(false);
   }, [balance]);
 
-  // ✅ Securely wrapped Airtime purchase
   const handleSecureBuy = () => {
     secureAction(() => handleBuy());
   };
@@ -38,44 +36,29 @@ export default function AirtimePage() {
   const handleBuy = async () => {
     setLoading(true);
     try {
-      if (!/^\d{11}$/.test(phone)) {
-        Alert.alert("Invalid", "Please enter a valid 11-digit phone number.");
-        return;
-      }
-      if (!network) {
-        Alert.alert("Invalid", "Please select a network.");
-        return;
-      }
+      if (!/^\d{11}$/.test(phone)) throw new Error("Enter a valid 11-digit phone number");
+      if (!network) throw new Error("Select a network");
       const amt = parseFloat(amount);
-      if (isNaN(amt) || amt < 50) {
-        Alert.alert("Invalid", "Enter a valid amount (min 50).");
-        return;
-      }
-      if (amt > localBalance) {
-        Alert.alert("Insufficient", "You have insufficient balance.");
-        return;
-      }
+      if (isNaN(amt) || amt < 50) throw new Error("Amount must be at least 50 coins");
+      if (amt > localBalance) throw new Error("Insufficient balance");
 
       const airtimeServiceID = network === "9mobile" ? "etisalat" : network;
 
       const res = await buyAirtime({ serviceID: airtimeServiceID, amount: amt, phone });
-      if (!res || !res.success) throw new Error("Airtime purchase failed");
-
-      const vt = res.vtpass || res;
-      if (vt?.code && vt.code !== "000") {
-        throw new Error(vt.response_description || "Transaction not successful");
+      if (!res || res.code !== "000") {
+        throw new Error(res.response_description || "Transaction failed");
       }
 
       await deductBalance(amt, `Airtime to ${phone}`, "Airtime");
       await addTransaction({
-        description: `Airtime purchase ${phone}`,
+        description: `Airtime purchase to ${phone}`,
         amount: amt,
         type: "debit",
         category: "Airtime",
         status: "success",
       });
 
-      Alert.alert("Success", `Airtime purchase successful for ${phone}.`);
+      Alert.alert("Success", `Airtime purchase successful for ${phone}`);
       setPhone("");
       setNetwork("");
       setAmount("");
@@ -137,12 +120,7 @@ export default function AirtimePage() {
         </Pressable>
       </View>
 
-      {/* ✅ PIN Dialog for fallback authentication */}
-      <PinDialog
-        visible={showPinDialog}
-        onClose={() => setShowPinDialog(false)}
-        onSubmit={verifyPin}
-      />
+      <PinDialog visible={showPinDialog} onClose={() => setShowPinDialog(false)} onSubmit={verifyPin} />
     </View>
   );
 }

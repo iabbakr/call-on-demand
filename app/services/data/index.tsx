@@ -3,19 +3,15 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { Text, TextInput } from "react-native-paper";
-import { useAuth } from "../../context/AuthContext";
-import { useApp } from "../../context/AppContext";
-import { getDataPlans, buyData } from "../../lib/api";
+import { useApp } from "../../../context/AppContext";
+import { buyData, DataPlan, getDataPlans } from "../../../lib/vtpass";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
 const HEADER_BG = "#F5F5F5";
 const INACTIVE_COLOR = "#757575";
 
-type DataPlan = { name: string; variation_code: string; variation_amount: string };
-
 export default function DataPage() {
-  const { user } = useAuth();
   const { balance: globalBalance, deductBalance, addTransaction } = useApp();
   const [balance, setBalance] = useState<number>(0);
   const [phone, setPhone] = useState("");
@@ -31,17 +27,14 @@ export default function DataPage() {
     setInitialLoading(false);
   }, [globalBalance]);
 
+  // Fetch VTpass data plans for selected network
   const fetchPlans = async (svc: string) => {
     setPlansLoading(true);
     try {
       const serviceID = `${svc}-data`;
-      const data = await getDataPlans(serviceID);
-      // normalize server return: { success: true, plans: [...] }
-      let list: DataPlan[] = [];
-      if (data?.plans) list = data.plans;
-      else if (Array.isArray(data)) list = data;
-      else if (data?.content?.variations) list = data.content.variations;
-      setPlans(list || []);
+      const dataPlans = await getDataPlans(serviceID);
+      setPlans(dataPlans || []);
+      setSelectedPlan(null);
     } catch (err: any) {
       console.error("fetch plans:", err);
       Alert.alert("Error", err?.message || "Could not fetch plans");
@@ -52,8 +45,6 @@ export default function DataPage() {
 
   const handleFetchPlansForNetwork = (n: string) => {
     setNetwork(n);
-    setSelectedPlan(null);
-    setPlans([]);
     fetchPlans(n);
   };
 
@@ -63,6 +54,7 @@ export default function DataPage() {
       if (!/^\d{11}$/.test(phone)) throw new Error("Enter a valid 11-digit phone number");
       if (!network) throw new Error("Select network");
       if (!selectedPlan) throw new Error("Choose a data plan");
+
       const amt = parseFloat(selectedPlan.variation_amount);
       if (isNaN(amt) || amt <= 0) throw new Error("Invalid plan amount");
       if (amt > balance) throw new Error("Insufficient balance");
@@ -75,18 +67,22 @@ export default function DataPage() {
         phone,
       });
 
-      if (!res || !res.success) throw new Error("Data purchase failed");
-      const vt = res.vtpass || res;
-      if (vt?.code && vt.code !== "000") throw new Error(vt.response_description || "Failed");
+      if (!res || res.code !== "000") throw new Error(res.response_description || "Data purchase failed");
 
       await deductBalance(amt, `Data ${selectedPlan.name} to ${phone}`, "Data");
-      await addTransaction({ description: `Data purchase ${selectedPlan.name}`, amount: amt, type: "debit", category: "Data", status: "success" });
+      await addTransaction({
+        description: `Data purchase ${selectedPlan.name}`,
+        amount: amt,
+        type: "debit",
+        category: "Data",
+        status: "success",
+      });
 
       Alert.alert("Success", `You purchased ${selectedPlan.name} for ${phone}`);
       setPhone("");
       setNetwork("");
-      setSelectedPlan(null);
       setPlans([]);
+      setSelectedPlan(null);
       router.back();
     } catch (err: any) {
       console.error("Data purchase:", err);
@@ -115,22 +111,24 @@ export default function DataPage() {
       </View>
 
       <View style={styles.balanceCard}>
-        <View>
-          <Text style={{ color: BACKGROUND_COLOR, fontSize: 12 }}>Your wallet balance</Text>
-          <Text style={{ color: BACKGROUND_COLOR, fontSize: 20, fontWeight: "700" }}>
-            <FontAwesome5 name="coins" size={16} color={BACKGROUND_COLOR} /> {balance.toLocaleString()}
-          </Text>
-        </View>
+        <Text style={{ color: BACKGROUND_COLOR, fontSize: 12 }}>Your wallet balance</Text>
+        <Text style={{ color: BACKGROUND_COLOR, fontSize: 20, fontWeight: "700" }}>
+          <FontAwesome5 name="coins" size={16} color={BACKGROUND_COLOR} /> {balance.toLocaleString()}
+        </Text>
       </View>
 
-      <View style={{ backgroundColor: BACKGROUND_COLOR, padding: 12, borderRadius: 8 }}>
+      <View style={styles.form}>
         <Text>Phone Number</Text>
-        <TextInput mode="outlined" keyboardType="phone-pad" value={phone} onChangeText={setPhone} style={{ marginTop: 6 }} />
+        <TextInput mode="outlined" keyboardType="phone-pad" value={phone} onChangeText={setPhone} style={styles.input} />
 
         <Text style={{ marginTop: 8 }}>Network</Text>
         <View style={styles.selectRow}>
           {["mtn", "glo", "airtel", "9mobile"].map((n) => (
-            <Pressable key={n} onPress={() => handleFetchPlansForNetwork(n)} style={[styles.networkItem, network === n && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}>
+            <Pressable
+              key={n}
+              onPress={() => handleFetchPlansForNetwork(n)}
+              style={[styles.networkItem, network === n && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}
+            >
               <Text style={{ textTransform: "uppercase", color: INACTIVE_COLOR }}>{n}</Text>
             </Pressable>
           ))}
@@ -143,9 +141,15 @@ export default function DataPage() {
           <FlatList
             data={plans}
             horizontal
-            keyExtractor={(item, idx) => `${item.variation_code}-${idx}`}
+            keyExtractor={(item) => item.variation_code}
             renderItem={({ item }) => (
-              <Pressable onPress={() => setSelectedPlan(item)} style={[{ padding: 10, marginRight: 8, borderRadius: 8, backgroundColor: HEADER_BG }, selectedPlan?.variation_code === item.variation_code && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}>
+              <Pressable
+                onPress={() => setSelectedPlan(item)}
+                style={[
+                  styles.planItem,
+                  selectedPlan?.variation_code === item.variation_code && { borderColor: PRIMARY_COLOR, borderWidth: 1 },
+                ]}
+              >
                 <Text style={{ fontWeight: "700" }}>{item.name}</Text>
                 <Text>{parseFloat(item.variation_amount).toLocaleString()} coins</Text>
               </Pressable>
@@ -166,8 +170,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#F5F5F5" },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   balanceCard: { backgroundColor: PRIMARY_COLOR, borderRadius: 8, padding: 16, marginBottom: 16 },
+  form: { backgroundColor: BACKGROUND_COLOR, padding: 12, borderRadius: 8 },
+  input: { marginTop: 6, backgroundColor: BACKGROUND_COLOR },
   selectRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
-  networkItem: { flex: 1, padding: 10, marginHorizontal: 4, backgroundColor: "#F5F5F5", borderRadius: 8, alignItems: "center" },
+  networkItem: { flex: 1, padding: 10, marginHorizontal: 4, backgroundColor: HEADER_BG, borderRadius: 8, alignItems: "center" },
+  planItem: { padding: 10, marginRight: 8, borderRadius: 8, backgroundColor: HEADER_BG },
   button: { marginTop: 16, backgroundColor: PRIMARY_COLOR, padding: 12, borderRadius: 8, alignItems: "center" },
   buttonText: { color: BACKGROUND_COLOR, fontWeight: "700" },
 });

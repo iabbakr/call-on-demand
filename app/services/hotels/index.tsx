@@ -34,10 +34,10 @@ import {
   getCitiesByState,
   getStates,
   StateName,
-} from "../../constants/data/nigeriaData";
-import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
-import { db } from "../../lib/firebase";
+} from "../../../constants/data/nigeriaData";
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
+import { db } from "../../../lib/firebase";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";

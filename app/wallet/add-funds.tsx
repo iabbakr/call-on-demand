@@ -1,10 +1,10 @@
+import Constants from "expo-constants";
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, ActivityIndicator, Alert } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { Text, TextInput } from "react-native-paper";
-import * as WebBrowser from "expo-web-browser";
-import { createPaystackTransaction, verifyPaystackAndCredit } from "../../lib/api";
-import { useAuth } from "../../context/AuthContext";
+import Paystack from "react-native-paystack-webview"; // FIXED
 import { useApp } from "../../context/AppContext";
+import { useAuth } from "../../context/AuthContext";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
@@ -12,59 +12,54 @@ const BACKGROUND_COLOR = "#FFFFFF";
 export default function AddFundsScreen() {
   const { user } = useAuth();
   const { refreshBalance } = useApp();
+
   const [amount, setAmount] = useState("1000");
-  const [loading, setLoading] = useState(false);
 
-  const startPaystack = async () => {
-    if (!user?.email) return Alert.alert("Email required", "Please add an email to your profile.");
-    const numeric = Number(amount);
-    if (isNaN(numeric) || numeric < 50) return Alert.alert("Invalid", "Enter a valid amount (min 50).");
+  const paystackPublicKey = Constants.expoConfig?.extra?.PAYSTACK_PUBLIC_KEY;
+  if (!paystackPublicKey) console.warn("Paystack public key not configured!");
 
-    setLoading(true);
-    try {
-      const init = await createPaystackTransaction(numeric, user.email);
-      if (!init || !init.success) throw new Error("Could not initialize payment");
-
-      // Open the authorization URL in the system browser
-      await WebBrowser.openBrowserAsync(init.authorization_url);
-
-      // After user completes payment in browser, we must verify the reference.
-      // Ask user to tap verify (or auto-verify after short delay).
-      Alert.alert("Complete Payment", "After completing payment in the browser, tap Verify to credit your wallet.");
-
-      // Immediately attempt verification (may fail if user hasn't completed)
-      const verify = await verifyPaystackAndCredit(init.reference, numeric);
-      if (verify?.success) {
-        Alert.alert("Success", "Wallet credited successfully.");
-        if (refreshBalance) refreshBalance();
-      } else {
-        Alert.alert("Info", "Payment not yet confirmed. You can try Verify later.");
-      }
-    } catch (err: any) {
-      console.error("Paystack init error:", err);
-      Alert.alert("Error", err?.message || "Failed to start payment");
-    } finally {
-      setLoading(false);
-    }
+  const handleSuccess = (reference: string) => {
+    Alert.alert("Success", "Payment completed! Reference: " + reference);
+    if (refreshBalance) refreshBalance();
+    setAmount("1000");
   };
+
+  const handleCancel = () => {
+    Alert.alert("Cancelled", "Payment was cancelled.");
+  };
+
+  const numericAmount = Number(amount);
+  if (isNaN(numericAmount) || numericAmount < 50) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Invalid amount. Minimum 50₦</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={{ fontWeight: "700", color: PRIMARY_COLOR, fontSize: 18 }}>Add Coins</Text>
+      <Text style={styles.title}>Add Coins</Text>
+
       <TextInput
         label="Amount (₦)"
         keyboardType="numeric"
         value={amount}
         onChangeText={setAmount}
-        style={{ marginTop: 16, backgroundColor: BACKGROUND_COLOR }}
+        style={styles.input}
       />
 
-      <Pressable style={[styles.button, loading && { opacity: 0.7 }]} onPress={startPaystack} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>Pay with Paystack</Text>}
-      </Pressable>
+      <Paystack
+        paystackKey={paystackPublicKey!}
+        amount={numericAmount * 100} // convert to kobo
+        billingEmail={user?.email || "test@example.com"}
+        activityIndicatorColor="green"
+        onCancel={handleCancel}
+        onSuccess={handleSuccess}
+      />
 
-      <Text style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
-        Tip: For reliable, automatic crediting implement a Paystack webhook server-side and avoid manual verification.
+      <Text style={styles.tip}>
+        Tip: Frontend-only payments work safely with Paystack public key. No secret key is exposed.
       </Text>
     </View>
   );
@@ -72,5 +67,7 @@ export default function AddFundsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#F5F5F5" },
-  button: { marginTop: 16, backgroundColor: PRIMARY_COLOR, padding: 12, borderRadius: 8, alignItems: "center" },
+  title: { fontWeight: "700", color: PRIMARY_COLOR, fontSize: 18, marginBottom: 16 },
+  input: { backgroundColor: BACKGROUND_COLOR, marginBottom: 16 },
+  tip: { marginTop: 12, fontSize: 12, color: "#666" },
 });

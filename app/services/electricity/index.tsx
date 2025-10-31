@@ -1,17 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
-import { Text } from "react-native-paper";
-import { TextInput } from "react-native-paper";
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
-import { useApp } from "../../context/AppContext";
-import { buyElectricity, verifyMeter } from "../../lib/api";
-import axios from "axios";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "react-native-paper";
+import { useApp } from "../../../context/AppContext";
+import { useAuth } from "../../../context/AuthContext";
+import { buyElectricity, verifyMeterNumber } from "../../../lib/vtpass";
 
 const PRIMARY_COLOR = "#6200EE";
 const BACKGROUND_COLOR = "#FFFFFF";
-const HEADER_BG = "#F5F5F5";
 const INACTIVE_COLOR = "#757575";
 
 const discos = [
@@ -22,16 +19,16 @@ const discos = [
 ];
 
 export default function ElectricityPage() {
-  const { user } = useAuth();
   const { balance: globalBalance, deductBalance, addTransaction } = useApp();
+  const { user } = useAuth();
   const [balance, setBalance] = useState<number>(0);
   const [disco, setDisco] = useState("");
   const [meter, setMeter] = useState("");
   const [meterType, setMeterType] = useState<"prepaid" | "postpaid">("prepaid");
   const [amount, setAmount] = useState("");
-  const [verifying, setVerifying] = useState(false);
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
@@ -46,12 +43,12 @@ export default function ElectricityPage() {
     }
     setVerifying(true);
     try {
-      const resp = await verifyMeter(disco, meter); // cloud callable
-      if (resp?.success && resp.content?.Customer_Name) {
-        setCustomerName(resp.content.Customer_Name);
-        Alert.alert("Verified", `Meter belongs to ${resp.content.Customer_Name}`);
+      const resp = await verifyMeterNumber({ serviceID: disco, billersCode: meter });
+      if (resp?.Customer_Name) {
+        setCustomerName(resp.Customer_Name);
+        Alert.alert("Verified", `Meter belongs to ${resp.Customer_Name}`);
       } else {
-        throw new Error(resp?.message || "Could not verify meter");
+        throw new Error("Could not verify meter");
       }
     } catch (err: any) {
       console.error("verify:", err);
@@ -75,17 +72,21 @@ export default function ElectricityPage() {
         billersCode: meter,
         variation_code: meterType,
         amount: amt,
-        phone: (user?.phoneNumber || user?.email) || "08011111111",
+        phone: user?.phoneNumber || "08011111111",
       });
 
-      if (!res || !res.success) throw new Error("Electricity purchase failed");
-      const vt = res.vtpass || res;
-      if (vt?.code && vt.code !== "000") throw new Error(vt.response_description || "Transaction failed");
+      if (!res || res.code !== "000") throw new Error(res.response_description || "Transaction failed");
 
       await deductBalance(amt, `Electricity ${disco} - ${meter}`, "Electricity");
-      await addTransaction({ description: `Electricity payment ${meter}`, amount: amt, type: "debit", category: "Electricity", status: "success" });
+      await addTransaction({
+        description: `Electricity payment ${meter}`,
+        amount: amt,
+        type: "debit",
+        category: "Electricity",
+        status: "success",
+      });
 
-      Alert.alert("Success", `Electricity purchase successful. Check token or meter.`);
+      Alert.alert("Success", "Electricity purchase successful. Check token or meter.");
       setDisco("");
       setMeter("");
       setCustomerName(null);
@@ -118,19 +119,21 @@ export default function ElectricityPage() {
       </View>
 
       <View style={styles.balanceCard}>
-        <View>
-          <Text style={{ color: BACKGROUND_COLOR, fontSize: 12 }}>Your wallet balance</Text>
-          <Text style={{ color: BACKGROUND_COLOR, fontSize: 20, fontWeight: "700" }}>
-            <FontAwesome5 name="coins" size={16} color={BACKGROUND_COLOR} /> {balance.toLocaleString()}
-          </Text>
-        </View>
+        <Text style={{ color: BACKGROUND_COLOR, fontSize: 12 }}>Your wallet balance</Text>
+        <Text style={{ color: BACKGROUND_COLOR, fontSize: 20, fontWeight: "700" }}>
+          <FontAwesome5 name="coins" size={16} color={BACKGROUND_COLOR} /> {balance.toLocaleString()}
+        </Text>
       </View>
 
-      <View style={{ backgroundColor: BACKGROUND_COLOR, padding: 12, borderRadius: 8 }}>
+      <View style={styles.form}>
         <Text>Disco</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 6 }}>
-          {discos.map(d => (
-            <Pressable key={d.id} onPress={() => setDisco(d.id)} style={[styles.networkItem, disco === d.id && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}>
+          {discos.map((d) => (
+            <Pressable
+              key={d.id}
+              onPress={() => setDisco(d.id)}
+              style={[styles.networkItem, disco === d.id && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}
+            >
               <Text style={{ color: INACTIVE_COLOR }}>{d.name}</Text>
             </Pressable>
           ))}
@@ -141,10 +144,16 @@ export default function ElectricityPage() {
 
         <Text style={{ marginTop: 8 }}>Meter Type</Text>
         <View style={{ flexDirection: "row", marginTop: 6 }}>
-          <Pressable onPress={() => setMeterType("prepaid")} style={[styles.smallBtn, meterType === "prepaid" && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}>
+          <Pressable
+            onPress={() => setMeterType("prepaid")}
+            style={[styles.smallBtn, meterType === "prepaid" && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}
+          >
             <Text>Prepaid</Text>
           </Pressable>
-          <Pressable onPress={() => setMeterType("postpaid")} style={[styles.smallBtn, meterType === "postpaid" && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}>
+          <Pressable
+            onPress={() => setMeterType("postpaid")}
+            style={[styles.smallBtn, meterType === "postpaid" && { borderColor: PRIMARY_COLOR, borderWidth: 1 }]}
+          >
             <Text>Postpaid</Text>
           </Pressable>
           <Pressable onPress={handleVerify} style={[styles.verifyBtn, verifying && { opacity: 0.7 }]}>
@@ -169,6 +178,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#F5F5F5" },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   balanceCard: { backgroundColor: PRIMARY_COLOR, borderRadius: 8, padding: 16, marginBottom: 16 },
+  form: { backgroundColor: BACKGROUND_COLOR, padding: 12, borderRadius: 8 },
   networkItem: { padding: 10, margin: 4, backgroundColor: "#F5F5F5", borderRadius: 8 },
   smallBtn: { padding: 10, marginRight: 8, backgroundColor: "#F5F5F5", borderRadius: 8 },
   verifyBtn: { marginLeft: "auto", backgroundColor: PRIMARY_COLOR, padding: 10, borderRadius: 8 },
