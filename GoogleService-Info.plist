@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>153946661333-ql0mlf3lmr0fkv7tin4sa27jlls5nt1s.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.153946661333-ql0mlf3lmr0fkv7tin4sa27jlls5nt1s</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBREKf8JYMiPXV1yLzS1OVDgB5HKZdxI_w</string>
+	<key>GCM_SENDER_ID</key>
+	<string>153946661333</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.devabu01.callondemand</string>
+	<key>PROJECT_ID</key>
+	<string>callondemand-764ff</string>
+	<key>STORAGE_BUCKET</key>
+	<string>callondemand-764ff.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:153946661333:ios:b1db8cbd85cfcfda875d5c</string>
+</dict>
+</plist>

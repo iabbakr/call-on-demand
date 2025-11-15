@@ -14,7 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, View } from "react-native";
+import { Alert, Image, Platform, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
 import { db } from "../../lib/firebase";
@@ -22,10 +22,12 @@ import { db } from "../../lib/firebase";
 const PRIMARY_COLOR = "#6200EE";
 const INACTIVE_COLOR = "#757575";
 const BACKGROUND_COLOR = "#FFFFFF";
+const ACCENT_COLOR = "#E8DEF8";
 
 interface UserData {
   fullName: string;
   username: string;
+  profileImage?: string;
 }
 
 export default function RootLayout() {
@@ -85,7 +87,15 @@ export default function RootLayout() {
   }, [user]);
 
   const userProfileImage =
+    userData?.profileImage ||
     "https://res-console.cloudinary.com/dswwtuano/thumbnails/v1/image/upload/v1760121319/dGkzNHBybzJobGQ3Z2txNWFrZDg=/preview";
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
   return (
     <Tabs
@@ -103,16 +113,14 @@ export default function RootLayout() {
                 source={{ uri: userProfileImage }}
                 style={styles.profileImage}
               />
+              <View style={styles.onlineIndicator} />
             </Pressable>
             <View style={styles.greetingContainer}>
-              <Text
-                style={{
-                  fontWeight: "bold",
-                  fontSize: 15,
-                  color: INACTIVE_COLOR,
-                }}
-              >
-                Hello, {userData?.fullName?.split(" ")[0] || "User"}
+              <Text style={styles.greetingText}>
+                {getGreeting()}
+              </Text>
+              <Text style={styles.userName} numberOfLines={1}>
+                {userData?.fullName?.split(" ")[0] || "User"} 👋
               </Text>
             </View>
           </View>
@@ -120,23 +128,29 @@ export default function RootLayout() {
         headerTitleAlign: "left",
         headerStyle: {
           backgroundColor: BACKGROUND_COLOR,
-          borderBottomWidth: 1,
-          borderBottomColor: "#E0E0E0",
-          height: 120,
+          elevation: 4,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          height: Platform.OS === "ios" ? 110 : 80,
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarStyle: {
           backgroundColor: BACKGROUND_COLOR,
-          borderTopWidth: 1,
-          borderTopColor: "#E0E0E0",
-          height: 95,
-          paddingBottom: 10,
-          paddingTop: 8,
+          borderTopWidth: 0,
           elevation: 8,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          height: Platform.OS === "ios" ? 88 : 70,
+          paddingBottom: Platform.OS === "ios" ? 20 : 10,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: "600",
           marginTop: 4,
         },
@@ -151,7 +165,7 @@ export default function RootLayout() {
               ]}
             >
               <View style={styles.notificationWrapper}>
-                <MaterialIcons name="support-agent" size={22} color="#1A1A1A" />
+                <MaterialIcons name="support-agent" size={22} color={PRIMARY_COLOR} />
                 {hasNewMessage && <View style={styles.badge} />}
               </View>
             </Pressable>
@@ -168,7 +182,7 @@ export default function RootLayout() {
                 <MaterialIcons
                   name="notifications"
                   size={22}
-                  color="#1A1A1A"
+                  color={PRIMARY_COLOR}
                 />
                 {hasUnreadNotification && <View style={styles.badge} />}
               </View>
@@ -183,11 +197,13 @@ export default function RootLayout() {
           headerShown: true,
           tabBarLabel: "Home",
           tabBarIcon: ({ focused }) => (
-            <Entypo
-              name="home"
-              size={24}
-              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
-            />
+            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+              <Entypo
+                name="home"
+                size={24}
+                color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
+              />
+            </View>
           ),
         }}
       />
@@ -197,11 +213,13 @@ export default function RootLayout() {
           headerShown: false,
           tabBarLabel: "Rewards",
           tabBarIcon: ({ focused }) => (
-            <MaterialCommunityIcons
-              name="diamond-stone"
-              size={24}
-              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
-            />
+            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+              <MaterialCommunityIcons
+                name="diamond-stone"
+                size={24}
+                color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
+              />
+            </View>
           ),
         }}
       />
@@ -211,11 +229,13 @@ export default function RootLayout() {
           headerShown: false,
           tabBarLabel: "Finance",
           tabBarIcon: ({ focused }) => (
-            <FontAwesome5
-              name="donate"
-              size={24}
-              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
-            />
+            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+              <FontAwesome5
+                name="donate"
+                size={24}
+                color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
+              />
+            </View>
           ),
         }}
       />
@@ -225,11 +245,13 @@ export default function RootLayout() {
           headerShown: false,
           tabBarLabel: "Profile",
           tabBarIcon: ({ focused }) => (
-            <Entypo
-              name="user"
-              size={24}
-              color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
-            />
+            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+              <Entypo
+                name="user"
+                size={24}
+                color={focused ? PRIMARY_COLOR : INACTIVE_COLOR}
+              />
+            </View>
           ),
         }}
       />
@@ -241,46 +263,103 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    marginLeft: 8,
+    gap: 12,
+    marginLeft: 16,
   },
   profileButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: INACTIVE_COLOR,
+    borderWidth: 2,
+    borderColor: PRIMARY_COLOR,
+    position: "relative",
+    elevation: 3,
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
-  profileButtonPressed: { opacity: 0.7 },
-  profileImage: { width: "100%", height: "100%" },
-  greetingContainer: { justifyContent: "center" },
+  profileButtonPressed: { 
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
+  },
+  profileImage: { 
+    width: "100%", 
+    height: "100%",
+    backgroundColor: ACCENT_COLOR,
+  },
+  onlineIndicator: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#4CAF50",
+    borderWidth: 2,
+    borderColor: BACKGROUND_COLOR,
+  },
+  greetingContainer: { 
+    justifyContent: "center",
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 12,
+    color: INACTIVE_COLOR,
+    fontWeight: "500",
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: 2,
+  },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginRight: 12,
-    paddingVertical: 4,
+    gap: 10,
+    marginRight: 16,
   },
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5F5F5",
+    backgroundColor: ACCENT_COLOR,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  iconButtonPressed: { backgroundColor: "#E0E0E0" },
-  notificationWrapper: { position: "relative" },
+  iconButtonPressed: { 
+    backgroundColor: PRIMARY_COLOR + "30",
+    transform: [{ scale: 0.95 }],
+  },
+  notificationWrapper: { 
+    position: "relative",
+  },
   badge: {
     position: "absolute",
-    top: -2,
-    right: -2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: -4,
+    right: -4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#FF3B30",
-    borderWidth: 1.5,
-    borderColor: "#F5F5F5",
+    borderWidth: 2,
+    borderColor: BACKGROUND_COLOR,
+  },
+  tabIconContainer: {
+    width: 56,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 16,
+  },
+  tabIconContainerActive: {
+    backgroundColor: ACCENT_COLOR,
   },
 });

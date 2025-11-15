@@ -1,5 +1,6 @@
 import axios from "axios";
 import { router } from "expo-router";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -14,6 +15,7 @@ import {
 } from "react-native";
 import { Button, Text, TextInput } from "react-native-paper";
 import { useAuth } from "../context/AuthContext";
+import { db } from "../lib/firebase";
 
 const NIGERIAN_STATES = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River",
@@ -48,10 +50,9 @@ export default function AuthScreen() {
   const [accountName, setAccountName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [referral, setReferral] = useState("");
 
-  /**
-   * 🔹 Fetch Paystack Bank List
-   */
+  // 🔹 Fetch Paystack Banks
   useEffect(() => {
     const fetchBanks = async () => {
       try {
@@ -68,9 +69,7 @@ export default function AuthScreen() {
     fetchBanks();
   }, []);
 
-  /**
-   * ✅ Verify bank account using Paystack
-   */
+  // ✅ Verify Bank Account
   const verifyAccount = async () => {
     if (!selectedBank || !accountNumber) return null;
     try {
@@ -88,16 +87,34 @@ export default function AuthScreen() {
       Alert.alert("✅ Account Verified", `Account Name: ${account_name}`);
       return account_name;
     } catch (err: any) {
-      Alert.alert("❌ Verification failed", err.response?.data?.message || "Could not verify account");
+      Alert.alert(
+        "❌ Verification failed",
+        err.response?.data?.message || "Could not verify account"
+      );
       return null;
     } finally {
       setVerifying(false);
     }
   };
 
-  /**
-   * 🔹 Handle sign-up
-   */
+  // 🔍 Check for duplicates in Firestore
+  const checkIfUserExists = async () => {
+    const usersRef = collection(db, "users");
+
+    const [emailSnap, usernameSnap, phoneSnap, accountSnap] = await Promise.all([
+      getDocs(query(usersRef, where("email", "==", email))),
+      getDocs(query(usersRef, where("username", "==", username))),
+      getDocs(query(usersRef, where("phoneNumber", "==", phoneNumber))),
+      accountNumber ? getDocs(query(usersRef, where("accountNumber", "==", accountNumber))) : Promise.resolve({ empty: true }),
+    ]);
+
+    if (!emailSnap.empty) throw new Error("Email is already registered");
+    if (!usernameSnap.empty) throw new Error("Username is already taken");
+    if (!phoneSnap.empty) throw new Error("Phone number is already in use");
+    if (!accountSnap.empty) throw new Error("Account number is already linked to another user");
+  };
+
+  // 🟣 Handle Sign Up
   const handleSignUp = async () => {
     try {
       if (
@@ -110,11 +127,15 @@ export default function AuthScreen() {
         !confirmPassword ||
         !pin ||
         !gender
-      )
+      ) {
         return setError("Please fill out all required fields");
+      }
 
       if (password !== confirmPassword) return setError("Passwords do not match");
       if (pin.length !== 4) return setError("PIN must be exactly 4 digits");
+
+      // 🔹 Check for duplicates in Firestore
+      await checkIfUserExists();
 
       let verifiedAccountName = "";
       if (selectedBank && accountNumber) {
@@ -131,20 +152,20 @@ export default function AuthScreen() {
         gender,
         location: selectedState,
         pin,
+        referral: referral || null,
         bankName: selectedBank?.name || null,
         accountNumber: accountNumber || null,
         accountName: verifiedAccountName || null,
       });
 
+      Alert.alert("✅ Success", "Your account has been created successfully!");
       router.replace("/");
     } catch (err: any) {
       setError(err.message || "Sign up failed");
     }
   };
 
-  /**
-   * 🔹 Handle sign-in
-   */
+  // 🟣 Handle Sign In
   const handleSignIn = async () => {
     try {
       setError(null);
@@ -178,30 +199,16 @@ export default function AuthScreen() {
               <TextInput label="Username" mode="outlined" style={styles.input} value={username} onChangeText={setUsername} />
               <TextInput label="Phone Number" mode="outlined" keyboardType="phone-pad" style={styles.input} value={phoneNumber} onChangeText={setPhoneNumber} />
 
-              {/* --- Gender Dropdown --- */}
+              {/* Gender Selector */}
               <TouchableOpacity onPress={() => setGenderModal(true)} style={styles.dropdownAnchor}>
-                <TextInput
-                  label="Gender"
-                  mode="outlined"
-                  value={gender}
-                  editable={false}
-                  right={<TextInput.Icon icon="menu-down" />}
-                />
+                <TextInput label="Gender" mode="outlined" value={gender} editable={false} right={<TextInput.Icon icon="menu-down" />} />
               </TouchableOpacity>
 
-              {/* Gender Modal */}
               <Modal visible={genderModal} animationType="slide" transparent onRequestClose={() => setGenderModal(false)}>
                 <View style={styles.modalOverlay}>
                   <View style={styles.modalContainer}>
                     {GENDER_OPTIONS.map((option) => (
-                      <TouchableOpacity
-                        key={option}
-                        onPress={() => {
-                          setGender(option);
-                          setGenderModal(false);
-                        }}
-                        style={styles.modalItem}
-                      >
+                      <TouchableOpacity key={option} onPress={() => { setGender(option); setGenderModal(false); }} style={styles.modalItem}>
                         <Text>{option}</Text>
                       </TouchableOpacity>
                     ))}
@@ -210,18 +217,11 @@ export default function AuthScreen() {
                 </View>
               </Modal>
 
-              {/* --- State Selector --- */}
+              {/* State Selector */}
               <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.dropdownAnchor}>
-                <TextInput
-                  label="Select State"
-                  mode="outlined"
-                  value={selectedState}
-                  editable={false}
-                  right={<TextInput.Icon icon="menu-down" />}
-                />
+                <TextInput label="Select State" mode="outlined" value={selectedState} editable={false} right={<TextInput.Icon icon="menu-down" />} />
               </TouchableOpacity>
 
-              {/* State Modal */}
               <Modal visible={menuVisible} animationType="slide" transparent onRequestClose={() => setMenuVisible(false)}>
                 <View style={styles.modalOverlay}>
                   <View style={styles.modalContainer}>
@@ -230,13 +230,7 @@ export default function AuthScreen() {
                       data={filteredStates}
                       keyExtractor={(item) => item}
                       renderItem={({ item }) => (
-                        <TouchableOpacity
-                          onPress={() => {
-                            setSelectedState(item);
-                            setMenuVisible(false);
-                          }}
-                          style={styles.modalItem}
-                        >
+                        <TouchableOpacity onPress={() => { setSelectedState(item); setMenuVisible(false); }} style={styles.modalItem}>
                           <Text>{item}</Text>
                         </TouchableOpacity>
                       )}
@@ -246,25 +240,19 @@ export default function AuthScreen() {
                 </View>
               </Modal>
 
-              {/* --- Password and PIN --- */}
               <TextInput label="Password" mode="outlined" style={styles.input} secureTextEntry value={password} onChangeText={setPassword} />
               <TextInput label="Confirm Password" mode="outlined" style={styles.input} secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
               <TextInput label="Create 4-Digit PIN" mode="outlined" style={styles.input} keyboardType="numeric" secureTextEntry maxLength={4} value={pin} onChangeText={setPin} />
 
-              {/* --- Bank Section --- */}
+              <TextInput label="Referral Code (Optional)" mode="outlined" style={styles.input} value={referral} onChangeText={setReferral} />
+
+              {/* Bank Linking */}
               <Text style={{ marginVertical: 10, fontWeight: "bold" }}>Link Your Bank Account (Optional)</Text>
 
               <TouchableOpacity onPress={() => setBankModal(true)} style={styles.dropdownAnchor}>
-                <TextInput
-                  label="Select Bank"
-                  mode="outlined"
-                  value={selectedBank?.name || ""}
-                  editable={false}
-                  right={<TextInput.Icon icon="menu-down" />}
-                />
+                <TextInput label="Select Bank" mode="outlined" value={selectedBank?.name || ""} editable={false} right={<TextInput.Icon icon="menu-down" />} />
               </TouchableOpacity>
 
-              {/* Bank Modal */}
               <Modal visible={bankModal} transparent animationType="slide" onRequestClose={() => setBankModal(false)}>
                 <View style={styles.modalOverlay}>
                   <View style={styles.modalContainer}>
@@ -272,13 +260,7 @@ export default function AuthScreen() {
                       data={bankList}
                       keyExtractor={(item) => item.id.toString()}
                       renderItem={({ item }) => (
-                        <TouchableOpacity
-                          onPress={() => {
-                            setSelectedBank(item);
-                            setBankModal(false);
-                          }}
-                          style={styles.modalItem}
-                        >
+                        <TouchableOpacity onPress={() => { setSelectedBank(item); setBankModal(false); }} style={styles.modalItem}>
                           <Text>{item.name}</Text>
                         </TouchableOpacity>
                       )}
@@ -295,17 +277,13 @@ export default function AuthScreen() {
                 </Button>
               ) : null}
 
-              <Button mode="contained" onPress={handleSignUp} style={styles.button}>
-                Sign Up
-              </Button>
+              <Button mode="contained" onPress={handleSignUp} style={styles.button}>Sign Up</Button>
             </>
           ) : (
             <>
               <TextInput label="Email" mode="outlined" style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
               <TextInput label="Password" mode="outlined" style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
-              <Button mode="contained" onPress={handleSignIn} style={styles.button}>
-                Sign In
-              </Button>
+              <Button mode="contained" onPress={handleSignIn} style={styles.button}>Sign In</Button>
             </>
           )}
 

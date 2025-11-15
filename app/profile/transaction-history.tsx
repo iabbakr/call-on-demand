@@ -1,132 +1,138 @@
-import * as Print from "expo-print";
-import { router, useLocalSearchParams } from "expo-router";
-import { doc, getDoc } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Text } from "react-native-paper";
-import { db } from "../../lib/firebase";
+import { router } from "expo-router";
+import React from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
+import { Text } from "react-native-paper";
+import { useApp } from "../../context/AppContext";
 
 const PRIMARY_COLOR = "#6200EE";
+const SECONDARY_COLOR = "#03DAC6";
 const BACKGROUND_COLOR = "#FFFFFF";
+const INACTIVE_COLOR = "#757575";
 const HEADER_BG = "#F5F5F5";
 
-export default function TransactionReceipt() {
-  const { id } = useLocalSearchParams();
-  const [transaction, setTransaction] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default function Transactions() {
+  const { transactions, loading } = useApp();
 
-  useEffect(() => {
-    if (!id) return;
-
-    const fetchTransaction = async () => {
-      try {
-        const snap = await getDoc(doc(db, "transactions", id as string));
-        if (!snap.exists()) return;
-
-        const data = snap.data();
-
-        // Fetch sender and receiver names if missing
-        const getUserName = async (uid: string | undefined) => {
-          if (!uid) return "Unknown";
-          try {
-            const userSnap = await getDoc(doc(db, "users", uid));
-            return userSnap.exists() ? userSnap.data().fullName || "Unknown" : "Unknown";
-          } catch {
-            return "Unknown";
-          }
-        };
-
-        const senderName = data.senderName || (data.senderId ? await getUserName(data.senderId) : "Unknown");
-        const receiverName = data.receiverName || (data.receiverId ? await getUserName(data.receiverId) : "Unknown");
-
-        setTransaction({ ...data, senderName, receiverName });
-      } catch (error) {
-        console.error("Error loading receipt:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTransaction();
-  }, [id]);
-
-  const handlePrint = async () => {
-    if (!transaction) return;
-
-    const html = `
-      <html>
-        <body style="font-family: Arial; padding: 20px;">
-          <h2 style="color: ${PRIMARY_COLOR};">Transaction Receipt</h2>
-          <p><strong>Transaction ID:</strong> ${id}</p>
-          <p><strong>Sender:</strong> ${transaction.senderName}</p>
-          <p><strong>Receiver:</strong> ${transaction.receiverName}</p>
-          <p><strong>Amount:</strong> ₦${transaction.amount?.toLocaleString()}</p>
-          <p><strong>Status:</strong> ${transaction.status}</p>
-          <p><strong>Type:</strong> ${transaction.type}</p>
-          <p><strong>Date:</strong> ${transaction.createdAt?.seconds
-            ? new Date(transaction.createdAt.seconds * 1000).toLocaleString()
-            : "—"}</p>
-        </body>
-      </html>
-    `;
-    await Print.printAsync({ html });
-  };
-
-  if (loading)
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={PRIMARY_COLOR} size="large" />
       </View>
     );
-
-  if (!transaction)
-    return (
-      <View style={styles.center}>
-        <Text>No transaction found.</Text>
-      </View>
-    );
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Transaction Receipt</Text>
-        <Text>Transaction ID: {id}</Text>
-        <Text>Sender: {transaction.senderName}</Text>
-        <Text>Receiver: {transaction.receiverName}</Text>
-        <Text>Amount: ₦{transaction.amount?.toLocaleString()}</Text>
-        <Text>Status: {transaction.status}</Text>
-        <Text>Type: {transaction.type}</Text>
-        <Text>
-          Date:{" "}
-          {transaction.createdAt?.seconds
-            ? new Date(transaction.createdAt.seconds * 1000).toLocaleString()
-            : "—"}
-        </Text>
+    <View style={styles.container}>
+      <Text style={styles.header}>Transaction History</Text>
 
-        <Pressable onPress={handlePrint} style={styles.printButton}>
-          <Text style={styles.printButtonText}>🧾 Print Receipt</Text>
-        </Pressable>
+      {transactions.length === 0 ? (
+        <Text style={styles.emptyText}>No transactions yet.</Text>
+      ) : (
+        <FlatList
+          data={transactions}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/components/trans/Transaction-Receipt",
+                  params: { id: item.id },
+                })
+              }
+              style={styles.transactionCard}
+            >
+              <View style={styles.transactionLeft}>
+                <Text style={styles.transactionType}>
+                  {item.category || "Transaction"}
+                </Text>
+                <Text style={styles.transactionName}>
+                  {item.description || "—"}
+                </Text>
+                <Text style={styles.transactionDate}>
+                  {item.date
+                    ? new Date(item.date).toLocaleString()
+                    : "—"}
+                </Text>
+              </View>
 
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+              <View style={styles.transactionRight}>
+                <Text
+                  style={[
+                    styles.transactionAmount,
+                    {
+                      color:
+                        item.type === "debit" ? "red" : PRIMARY_COLOR,
+                    },
+                  ]}
+                >
+                  {item.type === "debit" ? "-" : "+"}₦
+                  {item.amount?.toLocaleString()}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.transactionStatus,
+                    {
+                      color:
+                        item.status.toLowerCase() === "success"
+                          ? SECONDARY_COLOR
+                          : "red",
+                    },
+                  ]}
+                >
+                  {item.status}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+        />
+      )}
+
+      <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Text style={styles.backButtonText}>← Back</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: HEADER_BG, padding: 16 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  card: {
-    backgroundColor: BACKGROUND_COLOR,
-    padding: 16,
-    borderRadius: 10,
-    elevation: 2,
+  header: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: PRIMARY_COLOR,
+    marginBottom: 16,
   },
-  title: { fontSize: 20, fontWeight: "bold", color: PRIMARY_COLOR, marginBottom: 12 },
-  printButton: { backgroundColor: PRIMARY_COLOR, padding: 10, borderRadius: 8, alignItems: "center", marginTop: 20 },
-  printButtonText: { color: "#fff", fontWeight: "bold" },
-  backButton: { marginTop: 10, paddingVertical: 10, alignItems: "center" },
-  backButtonText: { color: PRIMARY_COLOR, fontWeight: "bold" },
+  transactionCard: {
+    backgroundColor: BACKGROUND_COLOR,
+    padding: 14,
+    borderRadius: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  transactionLeft: { flexDirection: "column" },
+  transactionType: { fontSize: 15, fontWeight: "bold", color: INACTIVE_COLOR },
+  transactionDate: { fontSize: 12, color: "#999" },
+  transactionName: { fontSize: 13, color: "#333", fontWeight: "500" },
+  transactionRight: { alignItems: "flex-end" },
+  transactionAmount: { fontSize: 16, fontWeight: "bold" },
+  transactionStatus: { fontSize: 12 },
+  backButton: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  backButtonText: { color: BACKGROUND_COLOR, fontWeight: "bold" },
+  emptyText: { color: INACTIVE_COLOR, textAlign: "center", marginTop: 30 },
 });

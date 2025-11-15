@@ -1,26 +1,29 @@
-import { Feather, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+// ============= profile.tsx =============
+import { Feather, FontAwesome5, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
-  View,
+  Text,
+  View
 } from "react-native";
-import { Button, Text } from "react-native-paper";
+import { Button, Card, Chip } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
+import { uploadImageToCloudinary } from "../../lib/cloudinary";
 import { db } from "../../lib/firebase";
 
 const PRIMARY_COLOR = "#6200EE";
-const SECONDARY_COLOR = "#03DAC6";
+const ACCENT_COLOR = "#E8DEF8";
+const SUCCESS_COLOR = "#4CAF50";
 const INACTIVE_COLOR = "#757575";
 const BACKGROUND_COLOR = "#FFFFFF";
-const HEADER_BG = "#F5F5F5";
 
 interface UserData {
   fullName: string;
@@ -30,6 +33,7 @@ interface UserData {
   profilePic?: string;
   bankName?: string;
   accountNumber?: string;
+  email?: string;
 }
 
 export default function Profile() {
@@ -77,6 +81,7 @@ export default function Profile() {
       }
     } catch (error) {
       console.error("Image Picker Error:", error);
+      Alert.alert("Error", "Unable to pick image.");
     }
   };
 
@@ -84,23 +89,14 @@ export default function Profile() {
     if (!user) return;
     setUploading(true);
     try {
-      const storage = getStorage();
-      const response = await fetch(uri);
-      const blob = await response.blob();
-
-      const storageRef = ref(storage, `profilePictures/${user.uid}.jpg`);
-      await uploadBytes(storageRef, blob);
-
-      const downloadURL = await getDownloadURL(storageRef);
-
+      const secureUrl = await uploadImageToCloudinary(uri, "profilePictures");
       const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { profilePic: downloadURL });
-
-      setUserData((prev) => (prev ? { ...prev, profilePic: downloadURL } : prev));
-      Alert.alert("Success", "Profile picture updated!");
+      await updateDoc(userRef, { profilePic: secureUrl });
+      setUserData((prev) => (prev ? { ...prev, profilePic: secureUrl } : prev));
+      Alert.alert("✅ Success", "Profile picture updated!");
     } catch (error) {
       console.error("Upload error:", error);
-      Alert.alert("Error", "Failed to upload profile picture.");
+      Alert.alert("❌ Error", "Failed to upload profile picture.");
     } finally {
       setUploading(false);
     }
@@ -108,189 +104,337 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center" }]}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+        <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>Profile</Text>
+  const menuItems = [
+    {
+      icon: "user",
+      iconType: "feather",
+      title: "Account Information",
+      subtitle: "View and edit your details",
+      route: "/profile/account-info",
+      color: PRIMARY_COLOR,
+      bg: ACCENT_COLOR,
+    },
+    {
+      icon: "history",
+      iconType: "material-community",
+      title: "Transaction History",
+      subtitle: "View all transactions",
+      route: "/profile/transaction-history",
+      color: "#2196F3",
+      bg: "#E3F2FD",
+    },
+    {
+      icon: "security",
+      iconType: "material-community",
+      title: "Security",
+      subtitle: "Manage security settings",
+      route: "/profile/security/security",
+      color: SUCCESS_COLOR,
+      bg: "#E8F5E9",
+    },
+    {
+      icon: "notifications",
+      iconType: "material",
+      title: "Notifications",
+      subtitle: "Configure notifications",
+      route: "/profile/notifications",
+      color: "#FF9800",
+      bg: "#FFF3E0",
+    },
+  ];
 
-      <View style={styles.content}>
-        {/* --- User Info --- */}
-        <View style={styles.userTopInfo}>
-          <Pressable onPress={pickImage}>
-            <View style={styles.userTopInfoImage}>
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Profile</Text>
+      </View>
+
+      {/* Profile Card */}
+      <Card style={styles.profileCard}>
+        <Card.Content>
+          {/* Avatar Section */}
+          <View style={styles.avatarSection}>
+            <Pressable onPress={pickImage} style={styles.avatarContainer}>
               {uploading ? (
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                </View>
               ) : (
-                <Image
-                  source={{
-                    uri:
-                      userData?.profilePic ||
-                      "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-                  }}
-                  style={styles.profilePic}
-                />
+                <>
+                  <Image
+                    source={{
+                      uri:
+                        userData?.profilePic ||
+                        "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+                    }}
+                    style={styles.avatar}
+                  />
+                  <View style={styles.cameraButton}>
+                    <FontAwesome5 name="camera" size={14} color="#fff" />
+                  </View>
+                </>
+              )}
+            </Pressable>
+
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{userData?.fullName || "User"}</Text>
+              <Text style={styles.userHandle}>@{userData?.username || "username"}</Text>
+              <Chip
+                icon="email"
+                compact
+                style={styles.emailChip}
+                textStyle={styles.emailChipText}
+              >
+                {userData?.email || user?.email || "No email"}
+              </Chip>
+            </View>
+          </View>
+
+          {/* Quick Stats */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <FontAwesome5 name="phone" size={16} color={PRIMARY_COLOR} />
+              <Text style={styles.statValue}>{userData?.phoneNumber || "N/A"}</Text>
+              <Text style={styles.statLabel}>Phone</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <FontAwesome5 name="map-marker-alt" size={16} color={PRIMARY_COLOR} />
+              <Text style={styles.statValue}>{userData?.location || "N/A"}</Text>
+              <Text style={styles.statLabel}>Location</Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* Menu Items */}
+      <View style={styles.menuSection}>
+        <Text style={styles.sectionTitle}>Settings</Text>
+        {menuItems.map((item, index) => (
+          <Pressable
+            key={index}
+            onPress={() => router.push(item.route as any)}
+            style={({ pressed }) => [
+              styles.menuItem,
+              pressed && styles.menuItemPressed,
+            ]}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>
+              {item.iconType === "feather" && (
+                <Feather name={item.icon as any} size={22} color={item.color} />
+              )}
+              {item.iconType === "material-community" && (
+                <MaterialCommunityIcons name={item.icon as any} size={22} color={item.color} />
+              )}
+              {item.iconType === "material" && (
+                <MaterialIcons name={item.icon as any} size={22} color={item.color} />
               )}
             </View>
+            <View style={styles.menuTextContainer}>
+              <Text style={styles.menuTitle}>{item.title}</Text>
+              <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={INACTIVE_COLOR} />
           </Pressable>
-
-          <View style={styles.userTopInfoUser}>
-            <Text style={styles.userTopInfoTitle}>
-              {userData?.fullName || "User"}
-            </Text>
-            <Text style={styles.userTopInfoUserName}>
-              @{userData?.username || "username"}
-            </Text>
-          </View>
-        </View>
-
-        {/* --- Profile Options --- */}
-        <View style={styles.profileOptions}>
-          {[
-            {
-              icon: <Feather name="user" size={22} color={PRIMARY_COLOR} />,
-              title: "Account Information",
-              route: "/profile/account-info",
-            },
-            {
-              icon: <MaterialCommunityIcons name="history" size={22} color={PRIMARY_COLOR} />,
-              title: "Transaction History",
-              route: "/profile/transaction-history",
-            },
-            {
-              icon: <MaterialCommunityIcons name="security" size={22} color={PRIMARY_COLOR} />,
-              title: "Security",
-              route: "/profile/security/security",
-            },
-            {
-              icon: <MaterialIcons name="notifications" size={22} color={PRIMARY_COLOR} />,
-              title: "Notifications",
-              route: "/profile/notifications",
-            },
-          ].map((item, index) => (
-            <Pressable
-              key={index}
-              onPress={() => router.push(item.route as any)}
-              android_ripple={{ color: HEADER_BG }}
-              style={({ pressed }) => [
-                styles.options,
-                pressed && { backgroundColor: HEADER_BG },
-              ]}
-            >
-              <View style={styles.optionTitleView}>
-                {item.icon}
-                <Text style={styles.optionTitle}>{item.title}</Text>
-              </View>
-              <MaterialIcons name="navigate-next" size={24} color={INACTIVE_COLOR} />
-            </Pressable>
-          ))}
-        </View>
-
-        {/* --- Logout --- */}
-        <Button
-          mode="outlined"
-          textColor={PRIMARY_COLOR}
-          style={styles.logout}
-          onPress={logOut}
-        >
-          Logout
-        </Button>
+        ))}
       </View>
-    </View>
+
+      {/* Logout Button */}
+      <Button
+        mode="contained"
+        icon="logout"
+        onPress={logOut}
+        style={styles.logoutButton}
+        contentStyle={styles.logoutButtonContent}
+        buttonColor="#F44336"
+      >
+        Logout
+      </Button>
+
+      <Text style={styles.versionText}>Version 1.0.0</Text>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: HEADER_BG,
-    paddingHorizontal: 16,
+    backgroundColor: "#F5F5F5",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#666",
+    fontSize: 14,
+  },
+  header: {
+    padding: 20,
     paddingTop: 60,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: "bold",
     color: PRIMARY_COLOR,
-    textAlign: "center",
-    marginBottom: 20,
   },
-  content: {
-    width: "100%",
-    backgroundColor: BACKGROUND_COLOR,
-    borderRadius: 12,
+  profileCard: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    elevation: 4,
+    borderRadius: 20,
+  },
+  avatarSection: {
+    alignItems: "center",
     paddingVertical: 20,
-    paddingHorizontal: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  userTopInfo: {
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 25,
+  avatarContainer: {
+    position: "relative",
+    marginBottom: 16,
   },
-  userTopInfoImage: {
-    borderWidth: 2,
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
     borderColor: PRIMARY_COLOR,
-    height: 90,
-    width: 90,
-    borderRadius: 50,
-    overflow: "hidden",
-    alignItems: "center",
+  },
+  uploadingOverlay: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: ACCENT_COLOR,
     justifyContent: "center",
-  },
-  profilePic: {
-    width: "100%",
-    height: "100%",
-  },
-  userTopInfoUser: {
     alignItems: "center",
   },
-  userTopInfoTitle: {
+  cameraButton: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: PRIMARY_COLOR,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#fff",
+  },
+  userInfo: {
+    alignItems: "center",
+  },
+  userName: {
+    fontSize: 24,
     fontWeight: "bold",
-    fontSize: 17,
+    color: "#333",
+    marginBottom: 4,
+  },
+  userHandle: {
+    fontSize: 16,
+    color: INACTIVE_COLOR,
+    marginBottom: 12,
+  },
+  emailChip: {
+    backgroundColor: ACCENT_COLOR,
+  },
+  emailChipText: {
+    fontSize: 12,
     color: PRIMARY_COLOR,
   },
-  userTopInfoUserName: {
-    color: INACTIVE_COLOR,
+  statsRow: {
+    flexDirection: "row",
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+  },
+  statValue: {
     fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
   },
-  profileOptions: {
-    marginTop: 10,
-    backgroundColor: BACKGROUND_COLOR,
-    borderRadius: 10,
-    overflow: "hidden",
+  statLabel: {
+    fontSize: 12,
+    color: INACTIVE_COLOR,
   },
-  options: {
+  statDivider: {
+    width: 1,
+    backgroundColor: "#E0E0E0",
+  },
+  menuSection: {
+    paddingHorizontal: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 12,
+  },
+  menuItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: HEADER_BG,
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  optionTitleView: {
-    flexDirection: "row",
+  menuItemPressed: {
+    opacity: 0.7,
+  },
+  menuIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 10,
+    marginRight: 16,
   },
-  optionTitle: {
+  menuTextContainer: {
+    flex: 1,
+  },
+  menuTitle: {
     fontSize: 16,
-    fontWeight: "500",
-    color: "#1A1A1A",
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
   },
-  logout: {
-    borderColor: PRIMARY_COLOR,
-    marginTop: 40,
-    alignSelf: "center",
-    width: "60%",
-    borderRadius: 8,
-    borderWidth: 1.5,
+  menuSubtitle: {
+    fontSize: 13,
+    color: INACTIVE_COLOR,
+  },
+  logoutButton: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    borderRadius: 12,
+  },
+  logoutButtonContent: {
+    paddingVertical: 8,
+  },
+  versionText: {
+    textAlign: "center",
+    marginTop: 24,
+    fontSize: 12,
+    color: INACTIVE_COLOR,
   },
 });

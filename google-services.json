@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "153946661333",
+    "project_id": "callondemand-764ff",
+    "storage_bucket": "callondemand-764ff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:153946661333:android:c2e81b90c342dfa5875d5c",
+        "android_client_info": {
+          "package_name": "com.devabu01.callondemand"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "153946661333-rjdrae12n745uuqa89a2bgbp5gpsmmon.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbnBJBArTgvdG6J8lqxSbbCSp6K-fBRhI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "153946661333-rjdrae12n745uuqa89a2bgbp5gpsmmon.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

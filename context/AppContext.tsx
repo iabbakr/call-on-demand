@@ -66,12 +66,19 @@ interface AppContextProps {
   balance: number;
   bonusBalance: number;
   transactions: Transaction[];
-  addBalance: (amount: number, description: string, category: string) => Promise<void>;
-  deductBalance: (amount: number, description: string, category: string) => Promise<void>;
+  addBalance: (
+    amount: number,
+    description: string,
+    category: string
+  ) => Promise<void>;
+  deductBalance: (
+    amount: number,
+    description: string,
+    category: string
+  ) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, "id" | "date">) => Promise<void>;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
   refreshBalance: () => Promise<void>;
-  // 🔐 Secure action props
   secureAction: (action: () => void) => Promise<void>;
   verifyPin: (enteredPin: string) => Promise<void>;
   showPinDialog: boolean;
@@ -178,7 +185,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           promptMessage: "Confirm with Biometrics",
           fallbackLabel: "Use PIN",
         });
-
         if (result.success) {
           action();
           return;
@@ -197,7 +203,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const verifyPin = async (enteredPin: string) => {
     if (!user) return Alert.alert("Error", "User not authenticated.");
-
     try {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (!userDoc.exists()) return Alert.alert("Error", "User data not found.");
@@ -207,7 +212,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       if (enteredHashed === storedHashedPin) {
         setShowPinDialog(false);
-        if (pendingAction) pendingAction();
+        const action = pendingAction;
+        setPendingAction(null);
+        if (action) action();
       } else {
         Alert.alert("Invalid PIN", "The PIN you entered is incorrect.");
       }
@@ -222,39 +229,63 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // ----------------------
   const addTransaction = async (transaction: Omit<Transaction, "id" | "date">) => {
     if (!user) throw new Error("User not authenticated.");
-    const txRef = collection(db, "users", user.uid, "transactions");
-    await addDoc(txRef, { ...transaction, date: serverTimestamp() });
-    await updateTrustScore(user.uid);
+    try {
+      const txRef = collection(db, "users", user.uid, "transactions");
+      await addDoc(txRef, { ...transaction, date: serverTimestamp() });
+      await updateTrustScore(user.uid);
+    } catch (err) {
+      console.error("Failed to add transaction:", err);
+      Alert.alert("Error", "Could not add transaction.");
+    }
   };
 
   const updateUserProfile = async (data: Partial<UserProfile>) => {
     if (!user) throw new Error("User not authenticated.");
-    const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, data);
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, data);
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+      Alert.alert("Error", "Could not update profile.");
+    }
   };
 
   const addBalance = async (amount: number, description: string, category: string) => {
     if (!user) throw new Error("User not authenticated.");
-    const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, { balance: increment(Number(amount)) });
-    await addTransaction({ description, amount, category, type: "credit", status: "success" });
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { balance: increment(Number(amount)) });
+      await addTransaction({ description, amount, category, type: "credit", status: "success" });
+    } catch (err) {
+      console.error("Failed to add balance:", err);
+      Alert.alert("Error", "Could not add balance.");
+    }
   };
 
   const deductBalance = async (amount: number, description: string, category: string) => {
     if (!user) throw new Error("User not authenticated.");
     if (amount > balance + bonusBalance) throw new Error("Insufficient balance.");
-    const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, { balance: increment(-Number(amount)) });
-    await addTransaction({ description, amount, category, type: "debit", status: "success" });
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { balance: increment(-Number(amount)) });
+      await addTransaction({ description, amount, category, type: "debit", status: "success" });
+    } catch (err) {
+      console.error("Failed to deduct balance:", err);
+      Alert.alert("Error", "Could not deduct balance.");
+    }
   };
 
   const updateTrustScore = async (uid: string) => {
-    const txRef = collection(db, "users", uid, "transactions");
-    const snapshot = await getCountFromServer(txRef);
-    const txCount = snapshot.data().count;
-    const trustScore = Math.min(100, 10 + txCount * 5);
-    const userRef = doc(db, "users", uid);
-    await updateDoc(userRef, { trustScore });
+    try {
+      const txRef = collection(db, "users", uid, "transactions");
+      const snapshot = await getCountFromServer(txRef);
+      const txCount = snapshot.data().count;
+      const trustScore = Math.min(100, 10 + txCount * 5);
+      const userRef = doc(db, "users", uid);
+      await updateDoc(userRef, { trustScore });
+    } catch (err) {
+      console.error("Failed to update trust score:", err);
+    }
   };
 
   const refreshBalance = async () => {

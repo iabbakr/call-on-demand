@@ -19,8 +19,10 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Text
+
 } from "react-native";
-import { ActivityIndicator, Text } from "react-native-paper";
+import { ActivityIndicator, } from "react-native-paper";
 import { useApp } from "../../context/AppContext";
 import { uploadImageToCloudinary } from "../../lib/cloudinary"; // ✅ helper for Cloudinary uploads
 import { db } from "../../lib/firebase";

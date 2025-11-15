@@ -49,7 +49,7 @@ export async function handleDailyCheckIn() {
     } else {
       newStreak = 1;
     }
-    bonus = 10;
+    bonus = 1;
   }
 
   if (newStreak >= 5) {
