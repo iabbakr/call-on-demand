@@ -47,6 +47,7 @@ export type UserProfile = {
   bonusBalance: number;
   trustScore?: number;
   createdAt?: Date;
+  paystackRecipientCode?: string | null;
   role?: "admin" | "seller" | "buyer";
 };
 

@@ -1,10 +1,15 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
 import { EmailAuthProvider, reauthenticateWithCredential, updateEmail } from "firebase/auth";
 import React, { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
-import { Button, Text, TextInput } from "react-native-paper";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Button, TextInput } from "react-native-paper";
 import { useAuth } from "../../../context/AuthContext";
 
+const PRIMARY_COLOR = "#6200EE";  
+
 export default function ChangeEmail() {
+  const router = useRouter();
   const { user } = useAuth();
   const [password, setPassword] = useState(""); // user's current password
   const [email, setEmail] = useState("");
@@ -37,8 +42,26 @@ export default function ChangeEmail() {
   };
 
   return (
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Update Email",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          
+    
+        }}
+      />
     <View style={styles.container}>
-      <Text style={styles.title}>Change Email</Text>
 
       <TextInput
         label="Current Password"
@@ -60,6 +83,7 @@ export default function ChangeEmail() {
         Update Email
       </Button>
     </View>
+  </KeyboardAvoidingView>
   );
 }
 

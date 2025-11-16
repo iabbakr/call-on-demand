@@ -1,12 +1,17 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
 import React, { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
-import { Button, Text, TextInput } from "react-native-paper";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Button, TextInput } from "react-native-paper";
 import { useAuth } from "../../../context/AuthContext";
 import { db } from "../../../lib/firebase";
 
+const PRIMARY_COLOR = "#6200EE";  
+
 export default function ChangeMobile() {
+  const router = useRouter();
   const { user } = useAuth();
   const [password, setPassword] = useState(""); // current password
   const [phone, setPhone] = useState("");
@@ -44,8 +49,27 @@ export default function ChangeMobile() {
   };
 
   return (
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Change Mobile Number",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          
+    
+        }}
+      />
     <View style={styles.container}>
-      <Text style={styles.title}>Change Mobile Number</Text>
+      
 
       <TextInput
         label="Current Password"
@@ -67,6 +91,7 @@ export default function ChangeMobile() {
         Update Mobile Number
       </Button>
     </View>
+  </KeyboardAvoidingView>
   );
 }
 

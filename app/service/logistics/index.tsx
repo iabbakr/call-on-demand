@@ -1,4 +1,4 @@
-import { FontAwesome5 } from "@expo/vector-icons";
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { router, Stack } from "expo-router";
 import {
@@ -18,6 +18,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -347,7 +348,31 @@ export default function Logistics() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <Stack.Screen options={{ headerShown: true, headerTitle: "Logistics" }} />
+
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Logistics & Delivery",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          headerRight: () => (
+            <Pressable 
+              onPress={() => router.push("/profile/transaction-history")}
+              style={{ paddingLeft: 8 }}
+            >
+              <FontAwesome5 name="history" size={20} color="#fff" />
+            </Pressable>
+          ),
+        }}
+      />
       {loading ? (
         <ActivityIndicator animating style={{ marginTop: 40 }} />
       ) : (

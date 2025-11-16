@@ -1,4 +1,4 @@
-import { FontAwesome5 } from "@expo/vector-icons";
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { router, Stack } from "expo-router";
 import {
@@ -18,11 +18,12 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import {
@@ -368,12 +369,7 @@ export default function FoodServices() {
   const Header = (
     <View style={styles.headerContainer}>
       {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <Text style={styles.heroTitle}>🍲 Food & Delivery</Text>
-        <Text style={styles.heroSubtitle}>
-          Delicious meals delivered to your doorstep
-        </Text>
-      </View>
+      
 
       {/* Balance Card */}
       <Card style={styles.balanceCard}>
@@ -782,11 +778,27 @@ export default function FoodServices() {
         options={{
           headerShown: true,
           headerBackVisible: false,
-          headerTitle: "Food Services",
+          headerTitle: "Buy Food",
           headerStyle: { backgroundColor: PRIMARY_COLOR },
           headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          headerRight: () => (
+            <Pressable 
+              onPress={() => router.push("/profile/transaction-history")}
+              style={{ paddingLeft: 8 }}
+            >
+              <FontAwesome5 name="history" size={20} color="#fff" />
+            </Pressable>
+          ),
         }}
       />
+      
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={PRIMARY_COLOR} />

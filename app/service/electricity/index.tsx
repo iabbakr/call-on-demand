@@ -1,7 +1,7 @@
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Button, Card, Text, TextInput } from "react-native-paper";
 import { useApp } from "../../../context/AppContext";
 import { useAuth } from "../../../context/AuthContext";
@@ -119,17 +119,37 @@ export default function ElectricityPage() {
   }
 
   return (
+    <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+    <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Education",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          headerRight: () => (
+            <Pressable 
+              onPress={() => router.push("/profile/transaction-history")}
+              style={{ paddingLeft: 8 }}
+            >
+              <FontAwesome5 name="history" size={20} color="#fff" />
+            </Pressable>
+          ),
+        }}
+      />
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={PRIMARY_COLOR} />
-        </Pressable>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>⚡ Electricity</Text>
-          <Text style={styles.headerSubtitle}>Pay for prepaid & postpaid meters</Text>
-        </View>
-      </View>
+      
 
       {/* Balance Card */}
       <Card style={styles.balanceCard}>
@@ -421,6 +441,7 @@ export default function ElectricityPage() {
 
       <View style={{ height: 40 }} />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -464,6 +485,7 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   balanceCard: {
+    marginTop: 16,
     marginHorizontal: 16,
     marginBottom: 16,
     backgroundColor: PRIMARY_COLOR,

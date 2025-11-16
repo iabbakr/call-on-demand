@@ -22,50 +22,98 @@ export async function rewardForReferral() {
   await addBonusToUser(100);
 }
 
-// ✅ Daily check-in (5-day streak logic)
-export async function handleDailyCheckIn() {
+// ---------------------------------------------------------
+// ✅ Daily Check-In — 7-Day Streak Reward Logic (Option C)
+// ---------------------------------------------------------
+//
+// ✔ Always returns: { rewarded: boolean; streak: number }
+// ✔ Never returns undefined
+// ✔ On day 7 → reward + reset streak to 0
+// ✔ Reward day does NOT count as streak
+// ✔ User must check in the next day to start new streak
+//
+export async function handleDailyCheckIn(): Promise<{
+  rewarded: boolean;
+  streak: number;
+}> {
   const user = auth.currentUser;
-  if (!user) return;
+
+  if (!user) return { rewarded: false, streak: 0 };
+
   const userRef = doc(db, "users", user.uid);
   const userSnap = await getDoc(userRef);
-  if (!userSnap.exists()) return;
+  if (!userSnap.exists()) return { rewarded: false, streak: 0 };
 
   const data = userSnap.data();
+
   const today = new Date();
   const lastCheckIn = data.lastCheckIn ? data.lastCheckIn.toDate() : null;
-  const streakCount = data.streakCount || 0;
-  let newStreak = streakCount;
-  let bonus = 0;
+  const streak = data.streakCount || 0;
 
-  if (
-    !lastCheckIn ||
-    (today.getTime() - lastCheckIn.getTime()) / (1000 * 60 * 60 * 24) >= 1
-  ) {
-    if (
-      lastCheckIn &&
-      (today.getTime() - lastCheckIn.getTime()) / (1000 * 60 * 60 * 24) <= 2
-    ) {
-      newStreak++;
-    } else {
-      newStreak = 1;
-    }
-    bonus = 1;
+  let newStreak = streak;
+
+  // ------------------------------------
+  // FIRST CHECK-IN EVER
+  // ------------------------------------
+  if (lastCheckIn === null) {
+    newStreak = 1;
+
+    await updateDoc(userRef, {
+      streakCount: newStreak,
+      lastCheckIn: Timestamp.now(),
+    });
+
+    return { rewarded: false, streak: newStreak };
   }
 
-  if (newStreak >= 5) {
+  // ------------------------------------
+  // CALCULATE DAY DIFFERENCE
+  // ------------------------------------
+  const dayDiff =
+    Math.floor((today.getTime() - lastCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Already checked in today → no update
+  if (dayDiff < 1) {
+    return { rewarded: false, streak };
+  }
+
+  // ------------------------------------
+  // STREAK PROGRESSION
+  // ------------------------------------
+  if (dayDiff === 1) {
+    newStreak = streak + 1;
+  } else {
+    newStreak = 1; // Missed days → reset
+  }
+
+  // ------------------------------------
+  // 7-DAY STREAK COMPLETED
+  // Option C: Reward + Reset to 0, but today NOT counted
+  // ------------------------------------
+  if (newStreak >= 7) {
     await updateDoc(userRef, {
-      bonusBalance: increment(bonus + 50),
+      bonusBalance: increment(10),
       streakCount: 0,
       lastCheckIn: Timestamp.now(),
     });
-  } else {
-    await updateDoc(userRef, {
-      bonusBalance: increment(bonus),
-      lastCheckIn: Timestamp.now(),
-      streakCount: newStreak,
-    });
+
+    return { rewarded: true, streak: 0 };
   }
+
+  // ------------------------------------
+  // NORMAL UPDATE (NOT DAY 7)
+  // ------------------------------------
+  await updateDoc(userRef, {
+    streakCount: newStreak,
+    lastCheckIn: Timestamp.now(),
+  });
+
+  return { rewarded: false, streak: newStreak };
 }
+
+// ---------------------------------------------------------
+// Other reward functions (unchanged)
+// ---------------------------------------------------------
 
 // ✅ Profile completion reward
 export async function rewardForProfileCompletion() {

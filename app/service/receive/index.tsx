@@ -1,7 +1,8 @@
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { Stack, useRouter } from "expo-router";
 import React from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
 import { useApp } from "../../../context/AppContext";
 import { useAuth } from "../../../context/AuthContext";
@@ -11,6 +12,7 @@ const BACKGROUND_COLOR = "#FFFFFF";
 const HEADER_BG = "#F5F5F5";
 
 export default function ReceivePage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { balance, userProfile } = useApp();
 
@@ -21,8 +23,27 @@ export default function ReceivePage() {
   };
 
   return (
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Receive Coins",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          
+    
+        }}
+      />
     <View style={styles.container}>
-      <Text style={styles.header}>Receive Funds</Text>
+     
 
       {/* Balance Card */}
       <View style={styles.balanceCard}>
@@ -50,6 +71,7 @@ export default function ReceivePage() {
         Share your username with another user to receive funds directly to your account.
       </Text>
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,5 +1,5 @@
 import { Feather, MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
 import { Text } from "react-native-paper";
@@ -14,11 +14,30 @@ export default function SecuritySettings() {
     { label: "Change Transaction PIN", icon: "key", route: "/profile/security/change-pin" },
     { label: "Change Email", icon: "mail", route: "/profile/security/change-email" },
     { label: "Change Mobile Number", icon: "phone", route: "/profile/security/change-mobile" },
+    { label: "Update Bank Account", icon: "credit-card", route: "/profile/security/update-bank" }, // ✅ new option
   ];
 
-  return (
+  return (<>
+    <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Security Settings",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          
+    
+        }}
+      />
+      
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Security Settings</Text>
 
       {options.map((item, index) => (
         <Pressable
@@ -37,7 +56,7 @@ export default function SecuritySettings() {
         </Pressable>
       ))}
     </ScrollView>
-  );
+  </>);
 }
 
 const styles = StyleSheet.create({

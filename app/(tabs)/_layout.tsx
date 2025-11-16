@@ -27,7 +27,7 @@ const ACCENT_COLOR = "#E8DEF8";
 interface UserData {
   fullName: string;
   username: string;
-  profileImage?: string;
+  profilePic?: string;
 }
 
 export default function RootLayout() {
@@ -87,7 +87,7 @@ export default function RootLayout() {
   }, [user]);
 
   const userProfileImage =
-    userData?.profileImage ||
+    userData?.profilePic ||
     "https://res-console.cloudinary.com/dswwtuano/thumbnails/v1/image/upload/v1760121319/dGkzNHBybzJobGQ3Z2txNWFrZDg=/preview";
 
   const getGreeting = () => {
@@ -263,8 +263,9 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
     marginLeft: 16,
+    flexShrink: 1,
   },
   profileButton: {
     width: 48,
@@ -300,21 +301,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: BACKGROUND_COLOR,
   },
-  greetingContainer: { 
-    justifyContent: "center",
-    flex: 1,
-  },
-  greetingText: {
-    fontSize: 12,
-    color: INACTIVE_COLOR,
-    fontWeight: "500",
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 2,
-  },
+greetingContainer: {
+  justifyContent: "center",
+  marginLeft: 8,
+  flexShrink: 1, // allow text to shrink instead of wrapping
+},
+greetingText: {
+  fontSize: 12,
+  color: INACTIVE_COLOR,
+  fontWeight: "500",
+},
+userName: {
+  fontSize: 16,
+  fontWeight: "bold",
+  color: "#333",
+  marginTop: 0,
+  flexShrink: 1, // ensures it stays on one line
+},
   headerRight: {
     flexDirection: "row",
     alignItems: "center",

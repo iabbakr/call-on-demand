@@ -1,8 +1,11 @@
-// reward.tsx
+// reward.tsx - Optimized & Responsive
 import { auth, db } from "@/lib/firebase";
-import { handleDailyCheckIn, redeemBonus, subscribeToUserBonus } from "@/lib/rewards";
+import {
+  handleDailyCheckIn,
+  redeemBonus,
+  subscribeToUserBonus,
+} from "@/lib/rewards";
 import { FontAwesome5 } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -15,335 +18,238 @@ import {
   Pressable,
   Text as RNText,
   SafeAreaView,
-  ScrollView,
   Share,
   StyleSheet,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { Text } from "react-native-paper";
 
-const PRIMARY_COLOR = "#6200EE";
-const SECONDARY_COLOR = "#03DAC6";
-const ACCENT_COLOR = "#E8DEF8";
-const SUCCESS_COLOR = "#4CAF50";
-const INACTIVE_COLOR = "#757575";
-const BACKGROUND_COLOR = "#FFFFFF";
-const HEADER_BG = "#F5F5F5";
-const CARD_BG = "#FFFFFF";
+/* ─── Constants ─── */
+const COLORS = {
+  primary: "#6200EE",
+  secondary: "#03DAC6",
+  accent: "#E8DEF8",
+  success: "#4CAF50",
+  inactive: "#757575",
+  background: "#FAFAFA",
+  card: "#FFFFFF",
+  textPrimary: "#1C1B1F",
+  textSecondary: "#49454F",
+};
 
 const { width } = Dimensions.get("window");
+const SPACING = 16;
+const CARD_BORDER_RADIUS = 16;
+const STREAK_DAYS = 7;
 
+/* ─── Types ─── */
 type AlertButton = { text: string; action?: () => void; style?: "primary" | "default" | "cancel" };
+type Reward = { title: string; points: string; image: string; onPress: () => void; disabled: boolean; icon: string };
 
-export default function Rewards(): React.JSX.Element {
+/* ─── Main Component ─── */
+export default function Rewards() {
   const [bonusBalance, setBonusBalance] = useState<number>(0);
-  const [checkedIn, setCheckedIn] = useState<boolean>(false);
+  const [streak, setStreak] = useState<number>(0);
+  const [checkedInToday, setCheckedInToday] = useState<boolean>(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [modal, setModal] = useState<{ title: string; message: string; buttons?: AlertButton[] } | null>(null);
 
-  // For decorative glow animation
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const streakPulse = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  /* ─── Animations ─── */
   useEffect(() => {
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, { toValue: 1, duration: 2000, useNativeDriver: false }),
         Animated.timing(glowAnim, { toValue: 0, duration: 2000, useNativeDriver: false }),
       ])
     ).start();
-  }, [glowAnim]);
-
-  useEffect(() => {
-    // load check-in status
-    const loadCheckInStatus = async () => {
-      try {
-        const lastCheckIn = await AsyncStorage.getItem("lastCheckIn");
-        if (lastCheckIn && Date.now() - parseInt(lastCheckIn, 10) < 24 * 60 * 60 * 1000) {
-          setCheckedIn(true);
-        } else {
-          setCheckedIn(false);
-        }
-      } catch (e) {
-        // ignore
-      }
-    };
-    loadCheckInStatus();
-
-    // subscribe to user's bonus balance
-    const unsubBonus = subscribeToUserBonus((value: number) => {
-      setBonusBalance(value ?? 0);
-    });
-
-    // subscribe to referral code on user doc (if logged in)
-    const user = auth.currentUser;
-    let unsubReferral: (() => void) | null = null;
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      unsubReferral = onSnapshot(userRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data() as any;
-          setReferralCode(data?.referralCode ?? null);
-        }
-      });
-    }
-
-    return () => {
-      unsubBonus && unsubBonus();
-      unsubReferral && unsubReferral();
-    };
   }, []);
 
-  const openModal = (title: string, message: string, buttons?: AlertButton[]) => {
-    setModal({ title, message, buttons });
+  const startStreakPulse = () => {
+    streakPulse.setValue(1.2);
+    Animated.spring(streakPulse, { toValue: 1, friction: 4, useNativeDriver: true }).start();
   };
 
+  /* ─── Firestore Listeners ─── */
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userRef = doc(db, "users", user.uid);
+    const unsubUser = onSnapshot(userRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data() as any;
+      setBonusBalance(data?.bonusBalance ?? 0);
+      setReferralCode(data?.referralCode ?? null);
+
+      const last = data?.lastCheckIn?.toDate?.();
+      const today = new Date();
+      const isToday = last && last.getFullYear() === today.getFullYear() &&
+                      last.getMonth() === today.getMonth() && last.getDate() === today.getDate();
+      setCheckedInToday(!!isToday);
+      setStreak(data?.streakCount ?? 0);
+    });
+
+    const unsubBonus = subscribeToUserBonus((v) => setBonusBalance(v ?? 0));
+    return () => { unsubUser(); unsubBonus(); };
+  }, []);
+
+  /* ─── Modal Helpers ─── */
+  const openModal = (title: string, message: string, buttons?: AlertButton[]) => setModal({ title, message, buttons });
   const closeModal = () => setModal(null);
 
-  // Handlers
+  /* ─── Handlers ─── */
   const onCheckIn = async () => {
-    if (checkedIn) {
-      openModal("⏳ Come back tomorrow!", "You can only check in once per day.");
-      return;
-    }
-
+    if (checkedInToday) return openModal("Come back tomorrow!", "You can only check-in once per day.");
     try {
-      await handleDailyCheckIn();
-      await AsyncStorage.setItem("lastCheckIn", Date.now().toString());
-      setCheckedIn(true);
-      openModal("✅ Check-In Successful!", "You earned 1 bonus coin!");
-    } catch (err) {
-      openModal("Error", "Could not complete check-in. Please try again.");
-    }
+      const result = await handleDailyCheckIn();
+      setCheckedInToday(true);
+      setStreak(result.streak ?? 0);
+      if (result.rewarded) {
+        startStreakPulse();
+        openModal("🎉 7-Day Streak Completed!", "You earned 10 bonus coins!", [{ text: "Awesome!", style: "primary" }]);
+      } else openModal("✅ Check-In Successful!", "You earned 1 bonus coin!");
+    } catch { openModal("Error", "Could not complete check-in."); }
   };
 
   const onRedeem = async () => {
-    if (bonusBalance <= 0) {
-      openModal("Insufficient Balance", "You need coins to redeem rewards.");
-      return;
-    }
-    try {
-      await redeemBonus();
-      openModal("🎉 Redeemed!", "Your bonus has been added to your balance.");
-    } catch (err) {
-      openModal("Error", "Redeem failed. Try again later.");
-    }
+    if (bonusBalance <= 0) return openModal("No coins", "You need coins to redeem.");
+    try { await redeemBonus(); openModal("Redeemed!", "Your bonus added to balance."); } catch { openModal("Error", "Redeem failed."); }
   };
 
   const onReferPress = async () => {
-    if (!referralCode) {
-      openModal("No Referral Code", "Your referral code is not available yet.");
-      return;
-    }
-    const referralLink = `https://callondemand.app/signup?ref=${referralCode}`;
-
-    openModal("Refer a Friend 🎁", `Share this link to invite your friends!\n\n${referralLink}`, [
-      {
-        text: "Copy Link",
-        action: async () => {
-          await Clipboard.setStringAsync(referralLink);
-          // show small confirm modal
-          openModal("Copied!", "Referral link copied to clipboard.");
-        },
-        style: "primary",
-      },
-      {
-        text: "Share",
-        action: async () => {
-          try {
-            await Share.share({
-              message: `Join EliteHub and earn rewards! Sign up with my referral link: ${referralLink}`,
-            });
-          } catch (e) {
-            // ignore
-          }
-        },
-      },
+    if (!referralCode) return openModal("No code", "Your referral code is not ready yet.");
+    const link = `https://callondemand.app/signup?ref=${referralCode}`;
+    openModal("Refer a Friend", `Share this link:\n\n${link}`, [
+      { text: "Copy", style: "primary", action: async () => { await Clipboard.setStringAsync(link); openModal("Copied!", "Link copied!"); } },
+      { text: "Share", action: async () => { await Share.share({ message: `Join EliteHub! ${link}` }); } },
       { text: "Cancel", style: "cancel" },
     ]);
   };
 
-  const rewards = [
-    {
-      title: "Daily Check-In",
-      points: "+1 Coins/day",
-      image: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=800&q=80&auto=format&fit=crop",
-      onPress: onCheckIn,
-      disabled: checkedIn,
-      icon: "check",
-    },
-    {
-      title: "Refer a Friend",
-      points: "+100 Coins",
-      image: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&q=80&auto=format&fit=crop",
-      onPress: onReferPress,
-      disabled: false,
-      icon: "users",
-    },
-    {
-      title: "Complete Profile",
-      points: "+100 Coins",
-      image: "https://images.unsplash.com/photo-1515165562835-c3b8f63c2dca?w=800&q=80&auto=format&fit=crop",
-      onPress: () => router.push("/profile/CompleteProfile"),
-      disabled: false,
-      icon: "id-badge",
-    },
+  /* ─── Data ─── */
+  const rewards: Reward[] = [
+    { title: "Daily Check-In", points: "+1 Coins/day", image: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=800&q=80", onPress: onCheckIn, disabled: checkedInToday, icon: "check-circle" },
+    { title: "Refer a Friend", points: "+100 Coins", image: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&q=80", onPress: onReferPress, disabled: false, icon: "users" },
+    { title: "Complete Profile", points: "+100 Coins", image: "https://images.unsplash.com/photo-1515165562835-c3b8f63c2dca?w=800&q=80", onPress: () => router.push("/profile/CompleteProfile"), disabled: false, icon: "id-badge" },
   ];
 
-  // Stats (kept local for now — replace with real data if available)
   const stats = [
-    { label: "Tasks Completed", value: 12, icon: "bullseye" },
-    { label: "Day Streak", value: 7, icon: "fire" },
-    { label: "Referrals", value: 3, icon: "users" },
+    { label: "Tasks Completed", value: 12, icon: "check-circle" },
+    { label: "Day Streak", value: streak, icon: "fire" },
+    { label: "Referrals", value: 3, icon: "user-friends" },
   ];
 
-  // Animated glow style interpolation
-  const glowInterpolate = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.02, 0.14], // opacity multiplier
-  });
+  const glowInterpolate = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.05, 0.15] });
 
+  /* ─── Render Helpers ─── */
+  const RewardCard = ({ r }: { r: Reward }) => {
+    const disabled = r.disabled;
+    return (
+      <Pressable onPress={r.onPress} disabled={disabled} style={({ pressed }) => [{ width: "48%", marginBottom: 12, borderRadius: CARD_BORDER_RADIUS, overflow: "hidden", opacity: disabled ? 0.5 : 1, transform: pressed && !disabled ? [{ scale: 0.97 }] : [{ scale: 1 }] }]}>
+        <Image source={{ uri: r.image }} style={{ width: "100%", height: 120, resizeMode: "cover" }} />
+        <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: disabled ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.15)" }} />
+        <View style={{ position: "absolute", bottom: 8, left: 8, right: 8, flexDirection: "row", alignItems: "center" }}>
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary, alignItems: "center", justifyContent: "center", marginRight: 8 }}>
+            <FontAwesome5 name={r.icon as any} size={20} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <RNText style={{ color: "#FFF", fontWeight: "700", fontSize: 14 }}>{r.title}</RNText>
+            <RNText style={{ color: "#FFF", fontSize: 12 }}>{r.points}</RNText>
+          </View>
+          {disabled && <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.success, alignItems: "center", justifyContent: "center" }}><FontAwesome5 name="check" size={16} color="#FFF" /></View>}
+        </View>
+      </Pressable>
+    );
+  };
+
+  const StatCard = ({ s }: any) => (
+    <View style={{ flex: 1, backgroundColor: COLORS.card, borderRadius: CARD_BORDER_RADIUS, paddingVertical: 20, paddingHorizontal: 12, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.08, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 }}>
+      <View style={{ marginBottom: 12, width: 48, height: 48, borderRadius: 24, backgroundColor: s.icon === "fire" ? "#FFF4F0" : `${COLORS.primary}15`, alignItems: "center", justifyContent: "center" }}>
+        <FontAwesome5 name={s.icon} size={22} color={s.icon === "fire" ? "#FF6B35" : COLORS.primary} />
+      </View>
+      <RNText style={{ fontSize: 24, fontWeight: "800", color: COLORS.textPrimary, marginBottom: 4 }}>{s.value}</RNText>
+      <RNText style={{ fontSize: 12, color: COLORS.textSecondary }}>{s.label}</RNText>
+    </View>
+  );
+
+  const ModalButton = ({ b }: { b: AlertButton }) => (
+    <TouchableOpacity
+      onPress={() => { b.action?.(); if (b.style !== "primary") closeModal(); }}
+      style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: b.style === "primary" ? COLORS.primary : b.style === "cancel" ? "#CCC" : "#EEE", marginLeft: 8 }}
+    >
+      <RNText style={{ fontSize: 14, color: b.style === "primary" ? "#FFF" : COLORS.textPrimary, fontWeight: b.style === "primary" ? "700" : "400" }}>{b.text}</RNText>
+    </TouchableOpacity>
+  );
+
+  /* ─── Render ─── */
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 30 }}
-      >
-        {/* Header */}
-        <Text style={styles.headerTitle}>Rewards & Services</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <Animated.ScrollView style={{ flex: 1, paddingHorizontal: SPACING, paddingTop: SPACING, opacity: fadeAnim }} contentContainerStyle={{ paddingBottom: 40 }}>
+        <RNText style={{ fontSize: 28, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 24 }}>Rewards & Bonuses</RNText>
 
-        {/* Balance Card with decorative glow */}
-        <View style={styles.balanceWrap}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.balanceCardGlow,
-              {
-                opacity: glowInterpolate,
-                transform: [{ scale: 1.05 }],
-              },
-            ]}
-          />
-          <View style={styles.balanceCard}>
-            <View style={styles.coinIconContainer}>
-              <RNText style={styles.coinIcon}>🪙</RNText>
+        {/* Balance Card */}
+        <View style={{ marginBottom: 24, alignItems: "center" }}>
+          <Animated.View pointerEvents="none" style={{ position: "absolute", width: width - SPACING * 2, height: 200, borderRadius: 24, backgroundColor: COLORS.secondary, opacity: glowInterpolate }} />
+          <View style={{ width: "100%", backgroundColor: COLORS.primary, borderRadius: 24, paddingVertical: 32, paddingHorizontal: 24, alignItems: "center", shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 24, elevation: 8 }}>
+            <View style={{ width: 72, height: 72, marginBottom: 16, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 36, alignItems: "center", justifyContent: "center" }}>
+              <FontAwesome5 name="coins" size={32} color="#FFD700" />
             </View>
-            <RNText style={styles.balanceText}>Your Total Reward Coins</RNText>
-            <RNText style={styles.balanceValue}>
-              <FontAwesome5 name="coins" size={18} color={CARD_BG} /> {bonusBalance}
-            </RNText>
-
-            <Pressable onPress={onRedeem} style={({ pressed }) => [styles.redeemButton, pressed && styles.redeemPressed]}>
-              <RNText style={styles.redeemText}>
-                <RNText style={styles.redeemIcon}>✨</RNText> Redeem Now
-              </RNText>
+            <RNText style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, marginBottom: 8, fontWeight: "500" }}>Total Reward Coins</RNText>
+            <RNText style={{ fontSize: 48, fontWeight: "800", color: "#FFF", marginBottom: 20 }}>{bonusBalance}</RNText>
+            <Pressable onPress={onRedeem} style={({ pressed }) => [{ backgroundColor: "#FFF", borderRadius: 16, paddingHorizontal: 32, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: 8, transform: pressed ? [{ scale: 0.96 }] : [{ scale: 1 }] }]}>
+              <FontAwesome5 name="sparkles" size={14} color={COLORS.primary} style={{ marginRight: 4 }} />
+              <RNText style={{ color: COLORS.primary, fontWeight: "700", fontSize: 16 }}>Redeem Now</RNText>
             </Pressable>
           </View>
         </View>
 
-        {/* Available Rewards */}
-        <RNText style={styles.sectionTitle}>Available Rewards</RNText>
-        <View style={styles.rewardsGrid}>
-          {rewards.map((reward, idx) => {
-            const isDisabled = !!reward.disabled;
-            return (
-              <Pressable
-                key={idx}
-                onPress={reward.onPress}
-                disabled={isDisabled}
-                style={({ pressed }) => [
-                  styles.rewardCard,
-                  isDisabled && styles.rewardCardDisabled,
-                  pressed && !isDisabled && styles.rewardCardPressed,
-                ]}
-              >
-                <Image source={{ uri: reward.image }} style={styles.rewardImage} />
-                <View style={styles.rewardOverlay} />
+        {/* Stats */}
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 24 }}>{stats.map((s, i) => <StatCard key={i} s={s} />)}</View>
 
-                <View style={styles.rewardContent}>
-                  <View style={styles.rewardIcon}>
-                    <FontAwesome5 name={reward.icon as any} size={18} color={CARD_BG} />
-                  </View>
-
-                  <View style={styles.rewardInfo}>
-                    <RNText style={styles.rewardTitle}>{reward.title}</RNText>
-                    <RNText style={styles.rewardPoints}>{reward.points}</RNText>
-                  </View>
-
-                  {isDisabled && (
-                    <View style={styles.checkmark}>
-                      <RNText style={styles.checkmarkText}>✓</RNText>
-                    </View>
-                  )}
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoIconContainer}>
-            <RNText style={styles.infoIcon}>🎁</RNText>
-          </View>
-          <View style={styles.infoContent}>
-            <RNText style={styles.infoTitle}>How to Use Your Coins</RNText>
-            <RNText style={styles.infoText}>
-              Use your coins to unlock premium services, airtime, and exclusive discounts!
-            </RNText>
+        {/* Streak */}
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 20, marginBottom: 24 }}>
+          <RNText style={{ fontSize: 18, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 4 }}><FontAwesome5 name="fire" size={16} color="#FF6B35" /> 7-Day Streak Challenge</RNText>
+          <RNText style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 12 }}>Complete 7 days in a row to earn 10 bonus coins!</RNText>
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            {Array.from({ length: STREAK_DAYS }).map((_, idx) => {
+              const filled = idx < streak;
+              const isCurrent = idx === streak - 1 && filled;
+              return (
+                <Animated.View key={idx} style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "#DDD", alignItems: "center", justifyContent: "center", backgroundColor: filled ? COLORS.success : "#FFF", transform: isCurrent ? [{ scale: streakPulse }] : [{ scale: 1 }] }}>
+                  {filled ? <FontAwesome5 name="check" size={14} color="#FFF" /> : <RNText style={{ color: COLORS.textSecondary, fontWeight: "700" }}>{idx + 1}</RNText>}
+                </Animated.View>
+              );
+            })}
           </View>
         </View>
 
-        {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          {stats.map((s, i) => (
-            <View style={styles.statCard} key={i}>
-              <View style={styles.statIconContainer}>
-                <FontAwesome5 name={s.icon as any} size={20} color={PRIMARY_COLOR} />
-              </View>
-              <RNText style={styles.statValue}>{s.value}</RNText>
-              <RNText style={styles.statLabel}>{s.label}</RNText>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+        {/* Rewards */}
+        <RNText style={{ fontSize: 20, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 12 }}>Available Rewards</RNText>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>{rewards.map((r, i) => <RewardCard key={i} r={r} />)}</View>
 
-      {/* Custom Modal (replicates web alert) */}
+        {/* Info */}
+        <View style={{ flexDirection: "row", padding: 16, backgroundColor: COLORS.card, borderRadius: CARD_BORDER_RADIUS }}>
+          <View style={{ marginRight: 12, alignItems: "center", justifyContent: "center" }}><FontAwesome5 name="gift" size={24} color={COLORS.primary} /></View>
+          <View style={{ flex: 1 }}>
+            <RNText style={{ fontSize: 16, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 4 }}>How to Use Your Coins</RNText>
+            <RNText style={{ fontSize: 12, color: COLORS.textSecondary }}>Redeem your coins to unlock premium services, airtime, and exclusive discounts!</RNText>
+          </View>
+        </View>
+      </Animated.ScrollView>
+
+      {/* Modal */}
       <Modal visible={!!modal} transparent animationType="fade" onRequestClose={closeModal}>
-        <Pressable style={styles.modalOverlay} onPress={closeModal}>
-          <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
-            <RNText style={styles.modalTitle}>{modal?.title}</RNText>
-            <RNText style={styles.modalMessage}>{modal?.message}</RNText>
-
-            <View style={styles.modalButtons}>
-              {modal?.buttons ? (
-                modal.buttons.map((btn, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    onPress={() => {
-                      btn.action?.();
-                      if (btn.style !== "primary") closeModal();
-                    }}
-                    style={[
-                      styles.modalButton,
-                      btn.style === "primary" ? styles.modalButtonPrimary : {},
-                      btn.style === "cancel" ? styles.modalButtonCancel : {},
-                    ]}
-                  >
-                    <RNText style={[styles.modalButtonText, btn.style === "primary" && styles.modalButtonTextPrimary]}>
-                      {btn.text}
-                    </RNText>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <TouchableOpacity
-                  onPress={closeModal}
-                  style={[styles.modalButton, styles.modalButtonPrimary]}
-                >
-                  <RNText style={[styles.modalButtonText, styles.modalButtonTextPrimary]}>OK</RNText>
-                </TouchableOpacity>
-              )}
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", alignItems: "center" }} onPress={closeModal}>
+          <Pressable style={{ width: "80%", backgroundColor: "#FFF", borderRadius: 16, padding: 20 }} onPress={(e) => e.stopPropagation()}>
+            <RNText style={{ fontSize: 18, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 8 }}>{modal?.title}</RNText>
+            <RNText style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 16 }}>{modal?.message}</RNText>
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
+              {modal?.buttons ? modal.buttons.map((b, i) => <ModalButton key={i} b={b} />) : <ModalButton b={{ text: "OK", style: "primary" }} />}
             </View>
           </Pressable>
         </Pressable>
@@ -351,323 +257,3 @@ export default function Rewards(): React.JSX.Element {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: HEADER_BG,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-  },
-
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: PRIMARY_COLOR,
-    textAlign: "center",
-    marginBottom: 18,
-    letterSpacing: -0.5,
-  },
-
-  // Balance card / glow
-  balanceWrap: {
-    marginBottom: 22,
-    alignItems: "center",
-  },
-  balanceCardGlow: {
-    position: "absolute",
-    top: -30,
-    left: -30,
-    width: width * 1.2,
-    height: 160,
-    borderRadius: 160,
-    backgroundColor: SECONDARY_COLOR,
-    opacity: 0.06,
-  },
-  balanceCard: {
-    width: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 20,
-    paddingVertical: 26,
-    paddingHorizontal: 18,
-    alignItems: "center",
-    overflow: "hidden",
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 6,
-  },
-  coinIconContainer: {
-    width: 60,
-    height: 60,
-    marginBottom: 12,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  coinIcon: {
-    fontSize: 28,
-  },
-  balanceText: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 14,
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  balanceValue: {
-    fontSize: 42,
-    fontWeight: "700",
-    color: CARD_BG,
-    marginBottom: 12,
-  },
-  redeemButton: {
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    marginTop: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  redeemPressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.95,
-  },
-  redeemText: {
-    color: PRIMARY_COLOR,
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  redeemIcon: {
-    fontSize: 16,
-  },
-
-  // Section
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1C1B1F",
-    marginBottom: 12,
-    letterSpacing: -0.3,
-  },
-
-  // Rewards grid
-  rewardsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginBottom: 22,
-  },
-  rewardCard: {
-    width: "48%",
-    height: 150,
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 12,
-    backgroundColor: CARD_BG,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-  },
-  rewardCardDisabled: {
-    opacity: 0.6,
-  },
-  rewardCardPressed: {
-    transform: [{ scale: 0.985 }],
-  },
-  rewardImage: {
-    width: "100%",
-    height: "100%",
-    position: "absolute",
-    resizeMode: "cover",
-  },
-  rewardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.28)",
-  },
-  rewardContent: {
-    position: "absolute",
-    bottom: 10,
-    left: 10,
-    right: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  rewardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
-  rewardInfo: {
-    flex: 1,
-  },
-  rewardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: CARD_BG,
-    marginBottom: 2,
-  },
-  rewardPoints: {
-    fontSize: 13,
-    color: SECONDARY_COLOR,
-    fontWeight: "700",
-  },
-  checkmark: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: SUCCESS_COLOR,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
-  checkmarkText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-
-  // Info section
-  infoSection: {
-    backgroundColor: ACCENT_COLOR,
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: `${PRIMARY_COLOR}20`,
-    alignItems: "center",
-  },
-  infoIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: CARD_BG,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  infoIcon: {
-    fontSize: 22,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: PRIMARY_COLOR,
-    marginBottom: 4,
-  },
-  infoText: {
-    fontSize: 14,
-    color: "#49454F",
-    lineHeight: 20,
-  },
-
-  // Stats
-  statsGrid: {
-    flexDirection: "row",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  statCard: {
-    width: (width - 16 * 2 - 12 * 2) / 3,
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-  },
-  statIconContainer: {
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: PRIMARY_COLOR,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: INACTIVE_COLOR,
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalBox: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: CARD_BG,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.28,
-    shadowOffset: { width: 0, height: 12 },
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1C1B1F",
-    marginBottom: 10,
-  },
-  modalMessage: {
-    fontSize: 15,
-    color: "#49454F",
-    lineHeight: 20,
-    marginBottom: 18,
-    
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-  },
-  modalButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: HEADER_BG,
-    marginLeft: 8,
-  },
-  modalButtonPrimary: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  modalButtonCancel: {
-    backgroundColor: HEADER_BG,
-  },
-  modalButtonText: {
-    color: PRIMARY_COLOR,
-    fontWeight: "700",
-  },
-  modalButtonTextPrimary: {
-    color: CARD_BG,
-  },
-});

@@ -1,10 +1,15 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import React, { useState } from "react";
-import { Alert, ScrollView, StyleSheet } from "react-native";
-import { ActivityIndicator, Button, Text, TextInput } from "react-native-paper";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from "react-native";
+import { ActivityIndicator, Button, TextInput } from "react-native-paper";
 import { auth } from "../../../lib/firebase"; // adjust path if different
 
+const PRIMARY_COLOR = "#6200EE";  
+
 export default function ChangePassword() {
+  const router = useRouter(); 
   const user = auth.currentUser;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -61,9 +66,27 @@ export default function ChangePassword() {
   };
 
   return (
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Change Password",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          
+    
+        }}
+      />
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Change Password</Text>
-
+      
       <TextInput
         label="Current Password"
         secureTextEntry
@@ -95,6 +118,7 @@ export default function ChangePassword() {
         {loading ? <ActivityIndicator animating color="#fff" /> : "Update Password"}
       </Button>
     </ScrollView>
+  </KeyboardAvoidingView>
   );
 }
 

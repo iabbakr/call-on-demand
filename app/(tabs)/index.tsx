@@ -165,7 +165,7 @@ export default function Home() {
         (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
       );
 
-      setRecentTransactions(allTx.slice(0, 3));
+      setRecentTransactions(allTx.slice(0, 2));
     } catch (err) {
       console.error("Error loading dashboard:", err);
       Alert.alert("Error", "Failed to load data.");

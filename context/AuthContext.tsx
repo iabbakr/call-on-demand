@@ -31,6 +31,8 @@ export interface ExtraUserData {
   bankCode?: string | null;
   accountNumber?: string | null;
   accountName?: string | null;
+  nameVerified?: boolean;
+  paystackRecipientCode?: string | null;
 }
 
 interface AuthContextProps {
@@ -91,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       bankCode: extraData.bankCode || null,
       accountName: extraData.accountName || null,
       accountNumber: extraData.accountNumber || null,
-      balance: 100, // Signup bonus
+      balance: 0, // Signup bonus
       bonusBalance: 0,
       referralCode,
       referralCount: 0,

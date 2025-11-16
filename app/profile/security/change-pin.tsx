@@ -1,18 +1,24 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
 import React, { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
-import { Button, Text, TextInput } from "react-native-paper";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Button, TextInput } from "react-native-paper";
 import { useAuth } from "../../../context/AuthContext";
 import { db } from "../../../lib/firebase";
 
+const PRIMARY_COLOR = "#6200EE";
+
 export default function ChangePin() {
+  const router = useRouter();
   const { user } = useAuth();
   const [password, setPassword] = useState(""); // user's current password
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
 
   const handleChange = async () => {
+  
     if (!password || !newPin || !confirmPin)
       return Alert.alert("Error", "Please fill all fields.");
     if (newPin !== confirmPin)
@@ -44,8 +50,27 @@ export default function ChangePin() {
   };
 
   return (
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Change PIN",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          
+    
+        }}
+      />
     <View style={styles.container}>
-      <Text style={styles.title}>Change Transaction PIN</Text>
+      
 
       <TextInput
         label="Your Password"
@@ -79,6 +104,7 @@ export default function ChangePin() {
         Update PIN
       </Button>
     </View>
+  </KeyboardAvoidingView>
   );
 }
 
