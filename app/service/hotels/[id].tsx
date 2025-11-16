@@ -69,7 +69,24 @@ export default function HotelDetails() {
       }))
     : [];
 
-  const calculateTotal = () => selectedRoomType ? selectedRoomType.price * roomCount : 0;
+  
+  const calculateTotal = () => {
+  if (!selectedRoomType || !checkIn || !checkOut) return 0;
+
+  const checkInDate = new Date(checkIn);
+  const checkOutDate = new Date(checkOut);
+
+  // Ensure valid dates
+  if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime()) || checkOutDate <= checkInDate) {
+    return selectedRoomType.price * roomCount; // fallback to per night
+  }
+
+  const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // number of nights
+
+  return selectedRoomType.price * roomCount * diffDays;
+};
+
 
   const createTransaction = async (totalPrice: number, bookingId: string) => {
     if (!user || !hotel) return null;
@@ -366,7 +383,7 @@ const styles = StyleSheet.create({
   card: { marginHorizontal: 16, marginVertical: 8, borderRadius: 12 },
   sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8 },
   itemsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  itemCard: { width: (width - 40) / 3, backgroundColor: "#FFF", borderRadius: 12, padding: 12, alignItems: "center", marginBottom: 12 },
+  itemCard: { width: (width - 40) / 4, backgroundColor: "#FFF", borderRadius: 12, padding: 12, alignItems: "center", marginBottom: 12 },
   itemCardSelected: { borderWidth: 2, borderColor: PRIMARY_COLOR },
   itemHeader: { position: "relative", marginBottom: 8 },
   itemIcon: { fontSize: 24 },

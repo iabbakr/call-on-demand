@@ -73,7 +73,7 @@ export default function Home() {
     { name: "Hotels", image: "https://res.cloudinary.com/dswwtuano/image/upload/v1731212667/hjlpy1k6mzyk7bokf8wq.jpg", icon: "🏨" },
     { name: "Transport", image: "https://res.cloudinary.com/dswwtuano/image/upload/v1731212274/x2p4l1xvbaock5hvrsby.jpg", icon: "🚗" },
     { name: "Education", image: "https://res.cloudinary.com/dswwtuano/image/upload/v1731212275/fnpni2u0etl1tg6wy6l7.jpg", icon: "📚" },
-    { name: "Laundry", image: "https://res.cloudinary.com/dswwtuano/image/upload/v1731212276/uyednw5ub2bshlqnchqa.jpg", icon: "👕" },
+    { name: "Laundry", image: "https://png.pngtree.com/png-vector/20240322/ourmid/pngtree-home-service-house-cleaning-and-laundry-wash-png-image_12190004.png", icon: "👕" },
     { name: "Loan", image: "https://res.cloudinary.com/dswwtuano/image/upload/v1731212273/hjk8womtfxoeuz2ly8t4.jpg", icon: "💰" },
   ];
 

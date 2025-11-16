@@ -69,7 +69,7 @@ const availableExtras: SelectableItem[] = [
 export default function FoodDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { userProfile, balance, deductBalance, addTransaction, refreshBalance } =
+  const { userProfile, balance, deductBalance, addTransaction, updateTransactionStatus, refreshBalance } =
     useApp();
   const { secureAction, showPinDialog, setShowPinDialog, verifyPin } =
     useSecureAction();
@@ -169,11 +169,13 @@ export default function FoodDetails() {
     if (balance < totalPrice)
       return Alert.alert("Insufficient Balance", "Top up your wallet.");
 
+    let transactionId: string | null = null;
+
     try {
       setProcessing(true);
 
-      await deductBalance(totalPrice, `Ordered ${food.name}`, "food");
-      await addTransaction({
+      // 🔥 Create ONE pending transaction
+      transactionId = await addTransaction({
         description: `Ordered ${food.name}`,
         amount: totalPrice,
         category: "food",
@@ -181,6 +183,10 @@ export default function FoodDetails() {
         status: "pending",
       });
 
+      // 🔥 Deduct balance WITHOUT creating another transaction
+      await deductBalance(totalPrice, `Ordered ${food.name}`, "food");
+
+      // Create the order
       const orderRef = await addDoc(collection(db, "orders"), {
         foodId: food.id,
         buyerId: user.uid,
@@ -196,11 +202,18 @@ export default function FoodDetails() {
         subFromDate: subFromDate || null,
         subToDate: subToDate || null,
         totalPrice,
+        transactionId, // 🔥 Link transaction to order
         status: "pending",
         createdAt: serverTimestamp(),
       });
 
+      // 🔥 Update transaction status to success
+      if (transactionId) {
+        await updateTransactionStatus(transactionId, "success");
+      }
+
       await refreshBalance();
+      
       Alert.alert(
         "✅ Order Successful",
         `Invoice #${orderRef.id}\n\nTotal: ₦${totalPrice.toLocaleString()}`
@@ -211,6 +224,12 @@ export default function FoodDetails() {
       });
     } catch (err) {
       console.error(err);
+      
+      // 🔥 Mark transaction as failed if it was created
+      if (transactionId) {
+        await updateTransactionStatus(transactionId, "failed");
+      }
+      
       Alert.alert("Error", "Could not place order. Try again.");
     } finally {
       setProcessing(false);

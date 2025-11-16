@@ -294,22 +294,23 @@ export default function FoodServices() {
     ]);
   };
 
-  // Render list item with improved design
-  const renderItem = ({ item }: { item: Service }) => (
-    <Swipeable
-      renderRightActions={() =>
-        isAdmin ? (
-          <TouchableOpacity
-            onPress={() => deleteFood(item.id!, item.name)}
-            style={styles.deleteAction}
-          >
-            <FontAwesome5 name="trash" size={20} color="#fff" />
-          </TouchableOpacity>
-        ) : null
-      }
-    >
-      <TouchableOpacity onPress={() => router.push(`/service/food/${item.id}`)}>
-        <Card style={styles.foodCard}>
+// Render list item with improved design
+const renderItem = ({ item }: { item: Service }) => (
+  <Swipeable
+    renderRightActions={() =>
+      isAdmin ? (
+        <TouchableOpacity
+          onPress={() => deleteFood(item.id!, item.name)}
+          style={styles.deleteAction}
+        >
+          <FontAwesome5 name="trash" size={20} color="#fff" />
+        </TouchableOpacity>
+      ) : null
+    }
+  >
+    <TouchableOpacity onPress={() => router.push(`/service/food/${item.id}`)}>
+      <Card style={styles.foodCard}>
+        <View style={styles.cardWrapper}>
           {item.thumbnail && (
             <Card.Cover source={{ uri: item.thumbnail }} style={styles.cardCover} />
           )}
@@ -361,10 +362,11 @@ export default function FoodServices() {
               </Button>
             </View>
           </Card.Content>
-        </Card>
-      </TouchableOpacity>
-    </Swipeable>
-  );
+        </View>
+      </Card>
+    </TouchableOpacity>
+  </Swipeable>
+);
 
   const Header = (
     <View style={styles.headerContainer}>
@@ -964,8 +966,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     borderRadius: 12,
-    overflow: "hidden",
     
+  },
+  cardWrapper: {
+    overflow: "hidden",
+    borderRadius: 12,
   },
   cardCover: {
     height: 180,
@@ -1139,4 +1144,5 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingBottom: 80,
   },
+
 });

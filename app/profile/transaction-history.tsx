@@ -1,10 +1,12 @@
-import { FontAwesome5 } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -24,6 +26,7 @@ const SCREEN_BG = "#F5F5F5";
 const { width } = Dimensions.get("window");
 
 export default function Transactions() {
+  const router = useRouter();
   const { transactions, loading } = useApp();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "debit" | "credit">("all");
@@ -99,6 +102,7 @@ export default function Transactions() {
           })
         }
       >
+        
         <View style={styles.transactionContent}>
           <View
             style={[
@@ -164,11 +168,44 @@ export default function Transactions() {
   }
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          headerTitle: "Transaction History",
+          headerStyle: { backgroundColor: PRIMARY_COLOR },
+          headerTintColor: "#fff",
+          headerLeft: () => {
+            return (
+              <Pressable onPress={() => router.back()} >
+                <MaterialIcons name="arrow-back" size={24} color="#fff" style={{ paddingLeft: 5 }} />
+              </Pressable>
+            );
+          },
+          headerRight: () => (
+  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+
+
+    {/* New Download button */}
+    <Pressable 
+      onPress={() => router.push("/profile/download-statement")}
+      style={{ paddingLeft: 8 }}
+    >
+      <FontAwesome5 name="download" size={20} color="#fff" />
+    </Pressable>
+  </View>
+)
+        }}
+      />
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.headerContainer}>
         <View style={styles.headerTitleRow}>
-          <Text style={styles.header}>Transaction History</Text>
+          <Text style={styles.header}>Transaction</Text>
           <View style={styles.countBadge}>
             <Text style={styles.countText}>{transactions.length}</Text>
           </View>
@@ -242,6 +279,7 @@ export default function Transactions() {
         />
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -377,12 +415,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   statusChip: {
-    height: 24,
-  },
-  statusChipText: {
-    fontSize: 10,
-    fontWeight: "600",
-  },
+  paddingHorizontal: 1,
+  paddingVertical: 1, // gives space for text
+  borderRadius: 12,
+  justifyContent: "center",
+  alignItems: "center",
+},
+statusChipText: {
+  fontSize: 10,
+  fontWeight: "600",
+  lineHeight: 12, // make sure text fits
+},
 
   // Empty State
   emptyContainer: {

@@ -221,7 +221,7 @@ export default function Hotels() {
 
       // Compute tags, min price for display
       const minPrice = Math.min(...roomTypes.map((r) => r.price));
-      const payload: Partial<Hotel & { minPrice?: number }> = {
+      const payload: Partial<Hotel & { minPrice?: number; price?: number; createdAt?: number }> = {
         name: newHotel.name,
         state: newHotel.state,
         city: newHotel.city,
@@ -350,10 +350,10 @@ export default function Hotels() {
                 </View>
 
                 <View style={styles.extrasRow}>
-                  {item.extras?.wifi && <Chip small style={styles.extraChip}>WiFi</Chip>}
-                  {item.extras?.pool && <Chip small style={styles.extraChip}>Pool</Chip>}
-                  {item.extras?.breakfast && <Chip small style={styles.extraChip}>Breakfast</Chip>}
-                  {item.extras?.light247 && <Chip small style={styles.extraChip}>24/7 Light</Chip>}
+                  {item.extras?.wifi && <Chip compact style={styles.extraChip}>WiFi</Chip>}
+                  {item.extras?.pool && <Chip compact style={styles.extraChip}>Pool</Chip>}
+                  {item.extras?.breakfast && <Chip compact style={styles.extraChip}>Breakfast</Chip>}
+                  {item.extras?.light247 && <Chip compact style={styles.extraChip}>24/7 Light</Chip>}
                 </View>
 
                 <Button

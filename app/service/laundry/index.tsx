@@ -505,7 +505,7 @@ export default function LaundryServices() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-     =<Stack.Screen
+     <Stack.Screen
              options={{
                headerShown: true,
                headerBackVisible: false,

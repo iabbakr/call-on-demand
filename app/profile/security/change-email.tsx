@@ -47,7 +47,7 @@ export default function ChangeEmail() {
         options={{
           headerShown: true,
           headerBackVisible: false,
-          headerTitle: "Update Email",
+          headerTitle: "Change Email",
           headerStyle: { backgroundColor: PRIMARY_COLOR },
           headerTintColor: "#fff",
           headerLeft: () => {

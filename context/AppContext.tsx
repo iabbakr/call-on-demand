@@ -77,7 +77,11 @@ interface AppContextProps {
     description: string,
     category: string
   ) => Promise<void>;
-  addTransaction: (transaction: Omit<Transaction, "id" | "date">) => Promise<void>;
+  addTransaction: (transaction: Omit<Transaction, "id" | "date">) => Promise<string | null>;
+  updateTransactionStatus: (
+    transactionId: string,
+    newStatus: "pending" | "success" | "failed"
+  ) => Promise<void>;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
   refreshBalance: () => Promise<void>;
   secureAction: (action: () => void) => Promise<void>;
@@ -97,7 +101,8 @@ const AppContext = createContext<AppContextProps>({
   transactions: [],
   addBalance: async () => {},
   deductBalance: async () => {},
-  addTransaction: async () => {},
+  addTransaction: async () => null,
+  updateTransactionStatus: async () => {},
   updateUserProfile: async () => {},
   refreshBalance: async () => {},
   secureAction: async () => {},
@@ -228,18 +233,43 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // ----------------------
   // BALANCE + TX HELPERS
   // ----------------------
+  
+  // 🔥 Add a new transaction record ONLY
   const addTransaction = async (transaction: Omit<Transaction, "id" | "date">) => {
     if (!user) throw new Error("User not authenticated.");
     try {
       const txRef = collection(db, "users", user.uid, "transactions");
-      await addDoc(txRef, { ...transaction, date: serverTimestamp() });
+      const ref = await addDoc(txRef, { ...transaction, date: serverTimestamp() });
+
       await updateTrustScore(user.uid);
+
+      return ref.id; // 🔥 Return the transaction ID
     } catch (err) {
       console.error("Failed to add transaction:", err);
       Alert.alert("Error", "Could not add transaction.");
+      return null;
     }
   };
 
+  // 🔥 Update transaction status
+  const updateTransactionStatus = async (
+    transactionId: string,
+    newStatus: "success" | "pending" | "failed"
+  ) => {
+    if (!user) throw new Error("User not authenticated.");
+
+    try {
+      const txRef = doc(db, "users", user.uid, "transactions", transactionId);
+      await updateDoc(txRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Failed to update transaction:", error);
+    }
+  };
+
+  // 🔥 Update user profile
   const updateUserProfile = async (data: Partial<UserProfile>) => {
     if (!user) throw new Error("User not authenticated.");
     try {
@@ -251,28 +281,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // 🔥 Add balance - DOES NOT create a transaction (caller should do that)
   const addBalance = async (amount: number, description: string, category: string) => {
     if (!user) throw new Error("User not authenticated.");
     try {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { balance: increment(Number(amount)) });
-      await addTransaction({ description, amount, category, type: "credit", status: "success" });
+      
+      // 🔥 NOTE: Transaction should be created by the caller if needed
+      // This prevents double transactions when addBalance is called after addTransaction
     } catch (err) {
       console.error("Failed to add balance:", err);
       Alert.alert("Error", "Could not add balance.");
+      throw err;
     }
   };
 
+  // 🔥 Deduct balance - DOES NOT create a transaction (caller should do that)
   const deductBalance = async (amount: number, description: string, category: string) => {
     if (!user) throw new Error("User not authenticated.");
     if (amount > balance + bonusBalance) throw new Error("Insufficient balance.");
     try {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { balance: increment(-Number(amount)) });
-      await addTransaction({ description, amount, category, type: "debit", status: "success" });
+      
+      // 🔥 NOTE: Transaction should be created by the caller if needed
+      // This prevents double transactions when deductBalance is called after addTransaction
     } catch (err) {
       console.error("Failed to deduct balance:", err);
       Alert.alert("Error", "Could not deduct balance.");
+      throw err;
     }
   };
 
@@ -314,6 +352,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     bonusBalance,
     transactions,
     addTransaction,
+    updateTransactionStatus,
     addBalance,
     deductBalance,
     updateUserProfile,

@@ -113,7 +113,7 @@ export default function RootLayout() {
                 source={{ uri: userProfileImage }}
                 style={styles.profileImage}
               />
-              <View style={styles.onlineIndicator} />
+              
             </Pressable>
             <View style={styles.greetingContainer}>
               <Text style={styles.greetingText}>
@@ -288,19 +288,10 @@ const styles = StyleSheet.create({
   profileImage: { 
     width: "100%", 
     height: "100%",
+    resizeMode: "cover",
     backgroundColor: ACCENT_COLOR,
   },
-  onlineIndicator: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#4CAF50",
-    borderWidth: 2,
-    borderColor: BACKGROUND_COLOR,
-  },
+  
 greetingContainer: {
   justifyContent: "center",
   marginLeft: 8,
